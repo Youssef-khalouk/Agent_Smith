@@ -1,0 +1,13 @@
+# Environments & Cache
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+
+# Project output directories
+cache/
+evaluations/
+
+# Environment keys
+.env
