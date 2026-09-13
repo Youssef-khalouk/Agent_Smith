@@ -1,5 +1,7 @@
 [build-system]
+# download a backend tool that helps me package my project to make it share-able
 requires = ["hatchling"]
+# the engine (button) that will do the packaging is located at hatchling.build
 build-backend = "hatchling.build"
 
 [project]
@@ -11,10 +13,10 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0.0",
     "docker>=7.0.0",
-    "mcp>=1.0.0",
-    "httpx>=0.27.0",
-    "python-dotenv>=1.0.0",
+    "mcp>=1.0.0", # server that stores the tools AI needs, server runs the code on the sandbox, sends the result back to AI to figure out what to do next
+    "httpx>=0.27.0", # Web requests library: sends prompts to remote AI APIs over the internet (NOT used for local stdio MCP)
+    "python-dotenv>=1.0.0", # # Loads secret API keys from a local .env file into os.environ
 ]
 
 [project.scripts]
-sandbox = "sandbox.cli:main"
+sandbox = "sandbox.cli:main" # sandbox is now a command that maps to python3 sandbox/cli.py and runs the main.py inside
