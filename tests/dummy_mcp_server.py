@@ -23,7 +23,7 @@ def addition(a: int, b: int) -> int:
 # Start the server listening on STDIO or http server for JSON-RPC msgs
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--http":
-        mcp.run(transport="sse")
+        mcp.run(transport="streamable-http")
     else:
         mcp.run(transport="stdio")
 # stdio:npx @modelcontextprotocol/inspector uv run python dummy_mcp_server.py
