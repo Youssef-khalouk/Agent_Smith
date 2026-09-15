@@ -29,4 +29,4 @@ if __name__ == "__main__":
 # stdio:npx @modelcontextprotocol/inspector uv run python dummy_mcp_server.py
 # ->Opens a browser where i can inspect tools(above funcs) and click "Run Tool"
 # !NO PRINT DEBUGGING to avoid agent reading print content as JSON-RPC = crash
-# http: uv run python dummy_mcp_server.py + npx @modelcontextprotocol/inspector
+# http: uv run python dummy_mcp_server.py --http + npx @modelcontextprotocol/inspector
