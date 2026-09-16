@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 provider = LLMProvider(
-    api_url="https://openrouter.ai/api/v1",
+    api_url=os.environ.get("API_URL"),
     api_keys=str(os.getenv("OPENROUTER_API_KEYS")).split(","),
-    model_name="openai/gpt-4o",
+    model_name=os.environ.get("MODEL_NAME"),
 )
 try:
     result = provider.generate(
