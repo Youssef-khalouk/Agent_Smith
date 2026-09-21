@@ -88,3 +88,11 @@ class SolutionOutput(BaseModel):
     system_prompt: str = Field(default="", description="Full system prompt sent to the LLM (for provenance checking)")
     error: Optional[str] = Field(default=None, description="Error message if the agent failed (None if successful)")
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="ISO 8601 timestamp of when the solution was produced")
+
+
+class LLMResponse(BaseModel):
+    text: str
+    input_tokens: int
+    output_tokens: int
+    latency_ms: float
+    retries: int = 0

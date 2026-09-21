@@ -1,24 +1,107 @@
+from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput
 
 
-# def agent_loop(task, max_iterations):
-#     conversation = [system_prompt, task_description]
+class Agent:
+    def __init__(self,
+                 max_iterations: int = 10,
+                 max_input_tokens: int = 6000,
+                 max_output_tokens: int = 1500,
+                 timeout_seconds: int = 120):
+        self.provider = LLMProvider(
+            api_url=os.environ.get("API_URL"),
+            api_keys=str(os.getenv("OPENROUTER_API_KEYS")).split(","),
+            model_name=os.environ.get("MODEL_NAME"),
+        )
+        self.sandbox = None
+        self.max_iterations: int = max_iterations
+        self.max_input_tokens: int = max_input_tokens
+        self.max_output_tokens: int = max_output_tokens
+        self.timeout_seconds = timeout_seconds
+        self.tools: str = ""
 
-#     for i in range(max_iterations):
-#         llm_response = call_llm(conversation, stop=["<end_code>"])
-#         code = extract_code(llm_response)  # your extraction layer
+    def _describe(task: any) -> tuple[str, str, str]:
+        """Return (task_id, benchmark, first user prompt) for a task object."""
+        if isinstance(task, MBPPTaskInput):
+            return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
+        if isinstance(task, SWEBenchTaskInput):
+            return task.instance_id, "swebench", Prompts.swebench_task(task)
+        raise TypeError(f"Unsupported task type: {type(task).__name__}")
+    
+    def _limit_error(self):
+        pass
 
-#         if code is None:
-#             observation = "Error: no valid code block found in your response."
-#         else:
-#             try:
-#                 observation = sandbox.execute(code)  # persistent namespace!
-#             except FinalAnswerCalled as fa:
-#                 return fa.answer  # done!
-#             except Exception as e:
-#                 observation = f"Error: {type(e).__name__}: {e}"
+    def _extract_code(self, response: str):
+        pass
+    
+    def _metrics(self, step, result, extracted_code, output) -> StepMetrics:
+        return StepMetrics(
+            step=step,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            request_time_ms=result.latency_ms,
+            api_url=self.provider.api_url,                # assumes an attribute
+            model_name=self.provider.model_name,          # assumes an attribute
+            llm_output=str(result.text),
+            sandbox_input=extracted_code.code or "",
+            sandbox_output=output,
+            retries=result.retries,
+        )
+    
+    def _build_output(self, task_id, benchmark, success, solution, steps, start, error) -> SolutionOutput:
+        return SolutionOutput(
+            task_id=task_id,
+            benchmark=benchmark,
+            success=success,
+            solution=solution,
+            system_prompt=self.system_prompt,
+            iterations=len(steps),
+            total_requests=sum(1 + s.retries for s in steps),
+            total_input_tokens=sum(s.input_tokens for s in steps),
+            total_output_tokens=sum(s.output_tokens for s in steps),
+            total_time_seconds=time.time() - start,
+            steps=steps,
+            error=error,
+        )
 
-#         conversation.append(llm_response)
-#         conversation.append(f"Observation: {observation}")
+    def run(self, task: MBPPTaskInput | SWEBenchTaskInput) -> SolutionOutput:
+        task_id, benchmark, task_prompt = self._describe(task)
+        start = time.time()
+        messages = [
+            {"role": "system", "content": Prompts.system_prompt(self.tools)},
+            {"role": "user", "content": task_prompt}
+        ]
 
-#     return None  # hit max_iterations without finishing
+        steps: list[StepMetrics] = []
+        solution, success, error = "", False, None
 
+        for step in range(1, self.max_iterations + 1):
+            
+            try:
+                result = self.provider(messages=messages, stop_sequences=["<end_code>"])
+            except Exception as error:
+                error = f"LLM error: {type(error).__name__}: {error}"
+                break
+
+            extracted_code = self._extract_code(result.text)
+            if extracted_code is None:
+                observation = Prompts.no_python_code_found()
+            else:
+                try:
+                    observation = self.sandbox.execute(extracted_code.code)
+                except Exception as error:
+                    observation = f"Error: {type(error).__name__}: {error}"
+            
+            steps.append(self._metrics(step, result, extracted_code, observation))
+            
+            messages.append({"role": "assistant", "content": result.text})
+            messages.append({"role": "user", "content": f"Observation: {observation}"})
+
+            if self.sandbox.final_answer_called:
+                solution = str(self.sandbox.final_answer_value)
+                success = True
+                break
+
+        else:
+            error = "Max iterations reached without final_answer."
+
+        return self._build_output(task_id, benchmark, success, solution, steps, start, error)

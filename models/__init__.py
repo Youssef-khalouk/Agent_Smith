@@ -2,7 +2,8 @@ from models import (SandboxConfig,
                     MBPPTaskInput,
                     SWEBenchTaskInput,
                     StepMetrics,
-                    SolutionOutput)
+                    SolutionOutput,
+                    LLMResponse)
 
 
 __version__ = "1.0.0"
@@ -14,5 +15,6 @@ __all__ = [
     "MBPPTaskInput",
     "SWEBenchTaskInput",
     "StepMetrics",
-    "SolutionOutput"
+    "SolutionOutput",
+    "LLMResponse"
 ]

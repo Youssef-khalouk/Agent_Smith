@@ -266,7 +266,6 @@ while loop:
     })
 
 
-
 print("answer:  ->   \n" + str(answer) + "\n\n\n")
 
 print(json.dumps(messages, indent=4))

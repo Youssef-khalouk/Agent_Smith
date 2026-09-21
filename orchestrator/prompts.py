@@ -1,14 +1,11 @@
-
-
-functions = ""
+from prompts import MBPPTaskInput, SWEBenchTaskInput
 
 
 class Prompts:
 
     @staticmethod
     def system_prompt(tools: str = "") -> str:
-
-        SYSTEM_PROMPT = (
+        prompt = (
             "You are an autonomous coding agent.\n"
             "Each turn, write a short Thought, then ONE python code block, then <end_code>.\n"
             "\n"
@@ -23,7 +20,26 @@ class Prompts:
             "print(open_file(\"main.py\"))\n"
             "````<end_code>\n"
         )
-        return SYSTEM_PROMPT
+        return prompt
+    
+    @staticmethod
+    def mbpp_task(task: MBPPTaskInput) -> str:
+        user_content = task.task_definition
+        user_content += f"\nfunction_definition: {task.function_definition}"
+        user_content += f"\ntest_imports: {str(task.test_imports)}"
+        user_content += f"\ntest_list: {str(task.test_list)}"
+        return user_content
 
-
-# print(Prompts.system_prompt())
+    @staticmethod
+    def swebench_task(task: SWEBenchTaskInput) -> str:
+        user_content = task.problem_statement
+        user_content += f"\ninstance_id: {task.instance_id}"
+        user_content += f"\ndocker_image: {task.docker_image}"
+        user_content += f"\neval_script: {task.eval_script}"
+        user_content += f"\nhints_text: {task.hints}"
+        user_content += f"\nrepo: {task.repo}"
+        return user_content
+    
+    @staticmethod
+    def no_python_code_found() -> str:
+        return "No python code block found. Write one inside `````python ... ````<end_code>."
