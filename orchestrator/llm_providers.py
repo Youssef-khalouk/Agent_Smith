@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class LLMResponse(BaseModel):
     text: str | None = None
-    tool_calls: list | None = None
+    # tool_calls: list | None = None
     input_tokens: int
     output_tokens: int
     latency_ms: float
@@ -48,7 +48,7 @@ class LLMProvider:
                     json={
                         "model": self.model_name,
                         "messages": messages,
-                        "tools": self.tools,
+                        # "tools": self.tools,
                         "stop": stop_sequences,
                         "max_tokens": 1000,
                     },
@@ -62,7 +62,7 @@ class LLMProvider:
 
                 return LLMResponse(
                     text=data["choices"][0]["message"].get("content", None),
-                    tool_calls=data["choices"][0]["message"].get("tool_calls", None),
+                    # tool_calls=data["choices"][0]["message"].get("tool_calls", None),
                     input_tokens=data["usage"]["prompt_tokens"],
                     output_tokens=data["usage"]["completion_tokens"],
                     latency_ms=latency_ms,
