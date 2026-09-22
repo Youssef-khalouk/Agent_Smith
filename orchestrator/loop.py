@@ -1,4 +1,9 @@
 from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput
+from extraction import extract_code
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 class Agent:
@@ -7,6 +12,7 @@ class Agent:
                  max_input_tokens: int = 6000,
                  max_output_tokens: int = 1500,
                  timeout_seconds: int = 120):
+        
         self.provider = LLMProvider(
             api_url=os.environ.get("API_URL"),
             api_keys=str(os.getenv("OPENROUTER_API_KEYS")).split(","),
@@ -27,11 +33,14 @@ class Agent:
             return task.instance_id, "swebench", Prompts.swebench_task(task)
         raise TypeError(f"Unsupported task type: {type(task).__name__}")
     
-    def _limit_error(self):
-        pass
-
-    def _extract_code(self, response: str):
-        pass
+    def _limit_error(self, steps, start) -> str | None:
+        if time.time() - start >= self.timeout_seconds:
+            return "Timeout reached"
+        if sum(s.input_tokens for s in steps) >= self.max_input_tokens:
+            return "Input token limit reached"
+        if sum(s.output_tokens for s in steps) >= self.max_output_tokens:
+            return "Output token limit reached"
+        return None
     
     def _metrics(self, step, result, extracted_code, output) -> StepMetrics:
         return StepMetrics(
@@ -39,8 +48,8 @@ class Agent:
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
             request_time_ms=result.latency_ms,
-            api_url=self.provider.api_url,                # assumes an attribute
-            model_name=self.provider.model_name,          # assumes an attribute
+            api_url=self.provider.api_url,
+            model_name=self.provider.model_name,
             llm_output=str(result.text),
             sandbox_input=extracted_code.code or "",
             sandbox_output=output,
@@ -75,14 +84,17 @@ class Agent:
         solution, success, error = "", False, None
 
         for step in range(1, self.max_iterations + 1):
-            
+            error = self._limit_error(steps, start)
+            if error:
+                break
+
             try:
                 result = self.provider(messages=messages, stop_sequences=["<end_code>"])
             except Exception as error:
                 error = f"LLM error: {type(error).__name__}: {error}"
                 break
 
-            extracted_code = self._extract_code(result.text)
+            extracted_code = extract_code(result.text)
             if extracted_code is None:
                 observation = Prompts.no_python_code_found()
             else:
@@ -100,7 +112,6 @@ class Agent:
                 solution = str(self.sandbox.final_answer_value)
                 success = True
                 break
-
         else:
             error = "Max iterations reached without final_answer."
 
