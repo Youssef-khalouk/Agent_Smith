@@ -1,11 +1,12 @@
-def test():
-    with open("/home/reda/Desktop/test.txt") as fd:
-        text = fd.read()
-        print("Can access")
-        print("Hello. From mcp client !")
+from mcp.server import MCPServer
+from mcp import Client
 
-def main():
-    test()
+
+def main() -> None:
+    with Client("http://localhost:8000/mcp") as client:
+        result = await client.call_tool("add", {"a": 1, "b": 2})
+        print(result.structured_content)  # {'result': 3}
+
 
 if __name__ == "__main__":
     main()

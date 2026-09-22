@@ -1,54 +1,51 @@
-import subprocess
-import os
+import builtins
+from models import SandboxConfig
+from typing import Dict
 from pydantic import BaseModel
+import fire
 
-class Executor(BaseModel):
-    def exec(self):
-        os.makedirs("/tmp/sbx_root_dir/", exist_ok=True)
-        os.makedirs("/tmp/sbx_root_dir/testbed/", exist_ok=True)
-        os.makedirs("/tmp/sbx_root_dir/tmp_agent/", exist_ok=True)
-        os.makedirs("/tmp/sbx_root_dir/proc", exist_ok=True)
-        subprocess.run(
-            ["mount", "--make-rprivate", "/"],
-            check=True
-        )
-        subprocess.run(
-            ["mount", "--bind", "./testbed", "/tmp/sbx_root_dir/testbed"],
-            check=True
-        )
-        subprocess.run(
-            ["mount", "--bind", "./tmp/agent", "/tmp/sbx_root_dir/tmp_agent"],
-            check=True
-        )
-        # subprocess.run(
-        #     ["mount", "-t", "proc", "proc", "/tmp/sbx_root_dir/proc"],
-        #     check=True
-        # )
-        os.chroot("/tmp/sbx_root_dir/")
 
-        # We must also change the current directory.
-        os.chdir("/")
-        print("New root:", os.getcwd())
-        print("testbed exists:", os.path.exists("/testbed"))
-        print("agent exists:", os.path.exists("/tmp/agent"))
-        print(
-            "Desktop exists:",
-            os.path.exists("/home/reda/Desktop")
-        )
-        with open("log.txt", "w") as fd:
-            subprocess.run(
-                ["python3", "mcp_client.py"],
-                check=True,
-                stdout=fd,
-                stderr=fd,
-                text=True
-            )
+SBX: SandboxConfig = SandboxConfig()
 
-def main():
-    ex = Executor()
-    ex.exec()
+
+def safe_open(file, flag):
+    real_open = builtins.open
+    path = os.path.abspath(os.fspath(file))
+    for direct in SBX.allowed_directories:
+        if direct in path:
+            return (real_open(file, flag))
+    raise ValueError("Access denied")
+
+
+def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    real_import = builtins.__import__
+    sbx: SandboxConfig = SandboxConfig()
+    root = name.split(".")[0]
+    if root not in SBX.authorized_imports:
+        raise ValueError("Import not allowed")
+    return (real_import(name, globals=None, locals=None, fromlist=(), level=0))
+
+
+def final_answer(value: str) -> str:
+    print ("__FINAL_ANSWER__SANDBOX__\n" + value)
+    exit()
+
+def exec_code(code: str) -> str:
+    allowed_builtins: Dict[str, str] = {
+        "print": builtins.print,
+        "len": builtins.print,
+        "range": builtins.range,
+        "open": safe_open,
+        "final_answer": final_answer,
+        "__import__": safe_import
+    }
+    exec(code, {"__builtins__": allowed_builtins})
+
+def main() -> None:
+    fire.Fire({
+        "exec": exec_code
+    })
+
 
 if __name__ == "__main__":
     main()
-
-    

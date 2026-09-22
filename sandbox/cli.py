@@ -1,16 +1,14 @@
-import fire
+# import 
 
-def greeting(name):
-    print(f"Hello: {name}")
+final_answer("print('hello')")
 
-with open("test.txt", "r") as fd:
-    code = file.read()
-    print(code)
+# def greeting(name):
+#     print("good")
 
-def main():
-    fire.Fire({
-        "greeting": greeting
-    })
+# def main():
+#     fire.Fire({
+#         "greeting": greeting
+#     })
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

@@ -1,4 +1,4 @@
-from models import (SandboxConfig,
+from .models import (SandboxConfig,
                     MBPPTaskInput,
                     SWEBenchTaskInput,
                     StepMetrics,
