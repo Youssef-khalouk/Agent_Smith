@@ -18,7 +18,7 @@ class SandboxConfig(BaseModel):
         "heapq", "bisect", "copy",
         "string", "random",
         "datetime", "datetime.*",
-        "array", "cmath",
+        "array", "cmath", "fire"
     ])
     allowed_directories: List[str] = Field(default_factory=lambda: [
         "/testbed", "/tmp/agent"
