@@ -1,6 +1,11 @@
-from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput
-from extraction import extract_code
+from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput, StepMetrics
+from .extraction import extract_code
 from dotenv import load_dotenv
+from sandbox.sandbox import SandBox
+from .llm_providers import LLMProvider
+import os
+from .prompts import Prompts
+import time
 
 
 load_dotenv()
@@ -18,14 +23,14 @@ class Agent:
             api_keys=str(os.getenv("OPENROUTER_API_KEYS")).split(","),
             model_name=os.environ.get("MODEL_NAME"),
         )
-        self.sandbox = None
+        self.sandbox = SandBox()
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
         self.max_output_tokens: int = max_output_tokens
         self.timeout_seconds = timeout_seconds
         self.tools: str = ""
 
-    def _describe(task: any) -> tuple[str, str, str]:
+    def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
         if isinstance(task, MBPPTaskInput):
             return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
@@ -51,7 +56,7 @@ class Agent:
             api_url=self.provider.api_url,
             model_name=self.provider.model_name,
             llm_output=str(result.text),
-            sandbox_input=extracted_code.code or "",
+            sandbox_input=extracted_code or "",
             sandbox_output=output,
             retries=result.retries,
         )
@@ -62,14 +67,14 @@ class Agent:
             benchmark=benchmark,
             success=success,
             solution=solution,
-            system_prompt=self.system_prompt,
+            system_prompt=Prompts.system_prompt(self.tools),
             iterations=len(steps),
             total_requests=sum(1 + s.retries for s in steps),
             total_input_tokens=sum(s.input_tokens for s in steps),
             total_output_tokens=sum(s.output_tokens for s in steps),
             total_time_seconds=time.time() - start,
             steps=steps,
-            error=error,
+            error=error
         )
 
     def run(self, task: MBPPTaskInput | SWEBenchTaskInput) -> SolutionOutput:
@@ -87,32 +92,34 @@ class Agent:
             error = self._limit_error(steps, start)
             if error:
                 break
-
             try:
-                result = self.provider(messages=messages, stop_sequences=["<end_code>"])
-            except Exception as error:
-                error = f"LLM error: {type(error).__name__}: {error}"
+                result = self.provider.generate(messages=messages, stop_sequences=["<end_code>"])
+            except Exception as e:
+                error = f"LLM error: {type(e).__name__}: {e}"
                 break
 
-            extracted_code = extract_code(result.text)
+            extracted_code, thought = extract_code(result.text)
+            print("")
+            print(thought)
             if extracted_code is None:
                 observation = Prompts.no_python_code_found()
             else:
                 try:
-                    observation = self.sandbox.execute(extracted_code.code)
-                except Exception as error:
-                    observation = f"Error: {type(error).__name__}: {error}"
+                    observation = self.sandbox.exec_code(extracted_code)
+                except Exception as e:
+                    observation = f"Error: {type(e).__name__}: {e}"
             
-            steps.append(self._metrics(step, result, extracted_code, observation))
+            steps.append(self._metrics(step, result, extracted_code, str(observation)))
             
             messages.append({"role": "assistant", "content": result.text})
             messages.append({"role": "user", "content": f"Observation: {observation}"})
 
             if self.sandbox.final_answer_called:
-                solution = str(self.sandbox.final_answer_value)
+                solution = self.sandbox.final_answer_value
                 success = True
                 break
         else:
             error = "Max iterations reached without final_answer."
-
+        import json
+        print(json.dumps(messages, indent=4))
         return self._build_output(task_id, benchmark, success, solution, steps, start, error)
