@@ -13,5 +13,13 @@ test_sbx:
 test_orchestrator:
 	uv run python -m tests.test_orchestrator
 
+start_mcp_server:
+	uv run python3 -m tests.dummy_mcp_server start_mcp --connection_type=$(CONNECTION_TYPE) &
+
+stop_mcp_server:
+	pkill -f "tests.dummy_mcp_server start_mcp"
+
+test_client:
+	uv run python3 -m tests.test_tools
 test_tools:
 	uv run python -m tests.test_tools

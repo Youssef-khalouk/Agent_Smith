@@ -33,8 +33,22 @@ def final_answer(value: str) -> str:
 def exec_code(code: str) -> str:
     allowed_builtins: Dict[str, str] = {
         "print": builtins.print,
-        "len": builtins.print,
+        "int": builtins.int,
+        "bool": builtins.bool,
+        "str": builtins.str,
+        "float": builtins.float,
+        "list": builtins.list,
+        "dict": builtins.dict,
+        "tuple": builtins.tuple,
+        "set": builtins.set,
+        "len": builtins.len,
         "range": builtins.range,
+        "enumerate": builtins.enumerate,
+        "zip": builtins.zip,
+        "min": builtins.min,
+        "max": builtins.max,
+        "sum": builtins.sum,
+        "abs": builtins.abs,
         "open": safe_open,
         "final_answer": final_answer,
         "__import__": safe_import

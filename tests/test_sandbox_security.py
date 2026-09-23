@@ -19,15 +19,21 @@ final_answer("\\ndef add(x, y):\\n  return (x + y)")
 
 tool_calls = [test_code, final_code]
 
-i = 0
-while True:
-    result = sbx.exec_code(tool_calls[i])
-    print(result)
-    i += 1
-    if sbx.final_answer_called:
-        print(f"Final_answer: {sbx.final_answer_value}")
-        break
+# i = 0
+# while True:
+#     result = sbx.exec_code(tool_calls[i])
+#     print(result)
+#     i += 1
+#     if sbx.final_answer_called:
+#         print(f"Final_answer: {sbx.final_answer_value}")
+#         break
 
-    if i == 2:
-        print("Error: while loop did not break.")
-        break
+#     if i == 2:
+#         print("Error: while loop did not break.")
+#         break
+
+with open("./sandbox/cli.py") as fd:
+    code = fd.read()
+
+result = sbx.exec_code(code)
+print(result)

@@ -1,12 +1,20 @@
-from mcp.server import MCPServer
-from mcp import Client
+from mcp.client.stdio import stdio_client
+from mcp import Client, StdioServerParameters
+from typing import Tuple, Dict, Any
+from tests.dummy_mcp_server import run_mcp
 
 
-def main() -> None:
-    with Client("http://localhost:8000/mcp") as client:
-        result = await client.call_tool("add", {"a": 1, "b": 2})
-        print(result.structured_content)  # {'result': 3}
+class Mcps():
+    async def stdio_connection(self, tool_call: Tuple[str, Any]) -> None:
+        async with Client(server_params) as client:
+            result = await client.call_tool(
+                tool_call[0],
+                tool_call[1]
+            )
+        return result.structured_content
 
-
-if __name__ == "__main__":
-    main()
+    async def http_connection(self, url: str, tool_call: Tuple[str, Any]) -> None:
+        run_mcp("http")
+        async with Client(url) as client:
+            result = await client.call_tool(tool_call[0], tool_call[1])
+        return (result.structured_content)
