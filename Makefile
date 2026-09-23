@@ -15,4 +15,4 @@ stop_mcp_server:
 	pkill -f "tests.dummy_mcp_server start_mcp"
 
 test_client:
-	uv run python3 -m tests.test_tools 
+	uv run python3 -m tests.test_tools
