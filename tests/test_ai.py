@@ -214,6 +214,7 @@ tools = [
         }
     }
 ]
+    
 
 print(Prompts.system_prompt(FUNCTIONS))
 exit()
@@ -264,7 +265,6 @@ while loop:
         "role": "user",
         "content": f"Observation:\n{observation}"
     })
-
 
 
 print("answer:  ->   \n" + str(answer) + "\n\n\n")
