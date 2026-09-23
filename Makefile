@@ -21,3 +21,5 @@ stop_mcp_server:
 
 test_client:
 	uv run python3 -m tests.test_tools
+test_tools:
+	uv run python -m tests.test_tools
