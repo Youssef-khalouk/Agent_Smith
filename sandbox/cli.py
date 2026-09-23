@@ -1,14 +1,15 @@
-# import 
+import fire
+from mcp_client import Mcps
 
-final_answer("print('hello')")
 
-# def greeting(name):
-#     print("good")
+def main() -> None:
+    fire.Fire(
+        {
+            "--mcp-stdio": Mcps().stdio_connection,
+            "--mcp-server": Mcps().http_connection,
+        }
+    )
 
-# def main():
-#     fire.Fire({
-#         "greeting": greeting
-#     })
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()
