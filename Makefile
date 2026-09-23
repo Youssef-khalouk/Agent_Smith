@@ -12,3 +12,6 @@ test_sbx:
 
 test_orchestrator:
 	uv run python -m tests.test_orchestrator
+
+test_tools:
+	uv run python -m tests.test_tools
