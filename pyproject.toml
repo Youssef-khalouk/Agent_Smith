@@ -10,7 +10,7 @@ version = "0.1.0"
 description = "Autonomous reasoning, code generation, and execution agent"
 package = false
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = "==3.10.*"
 dependencies = [
     "pydantic>=2.0.0",
     "docker>=7.0.0",
