@@ -1,6 +1,20 @@
+ifeq ($(OS),Windows_NT)
+    # Window
+	export UV_CACHE_DIR=C:/rag_env/uv_cache_dir
+	export UV_PROJECT_ENVIRONMENT=C:/rag_env/uv_venv
 
-export UV_CACHE_DIR=/tmp/uv_cache_dir
-export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
+else
+    ifneq ($(wildcard /mnt/c/RAG),)
+        # WSL
+		export UV_CACHE_DIR=$(HOME)/.cache/uv_cache_dir
+		export UV_PROJECT_ENVIRONMENT=$(HOME)/.cache/uv_venv
+
+    else
+        # Linux cluster
+		export UV_CACHE_DIR=/tmp/uv_cache_dir
+		export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
+    endif
+endif
 
 test_ai:
 	uv run python -m tests.test_ai

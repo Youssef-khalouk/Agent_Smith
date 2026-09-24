@@ -112,7 +112,7 @@ class Agent:
             steps.append(self._metrics(step, result, extracted_code, str(observation)))
             
             messages.append({"role": "assistant", "content": result.text})
-            messages.append({"role": "user", "content": f"Observation: {observation}"})
+            messages.append({"role": "user", "content": Prompts.observation(observation)})
 
             if self.sandbox.final_answer_called:
                 solution = self.sandbox.final_answer_value

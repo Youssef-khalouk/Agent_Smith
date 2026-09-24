@@ -20,11 +20,6 @@ task = MBPPTaskInput(
 
 agent = Agent()
 
-agent.tools = """- final_answer(answer): Call only when the task is fully completed and the code
-  has been tested successfully. Pass only the final tested code as plain text.
-  Do not include Markdown or explanations. `final_answer` must be called alone
-  and must be the last tool call."""
-
 result = agent.run(task)
 
 
