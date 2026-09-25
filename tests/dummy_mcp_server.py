@@ -1,31 +1,44 @@
-# Import the main MCPServer class from the ModelContextProtocol
 from mcp.server.mcpserver import MCPServer
 import sys
+import fire
+
 
 # make an MCP server instance and give it the internal name "dummy"
-mcp = MCPServer("dummy")
-
-# Register the following Python function as an executable MCP tool primitive
+MCP = MCPServer("dummy")
 
 
-@mcp.tool()
+@MCP.tool()
 def an_echo(text: str) -> str:
     """Repeat the text back."""
     return text
 
 
-@mcp.tool()
+@MCP.tool()
 def addition(a: int, b: int) -> int:
     """Add two numbers."""
     return a + b
 
 
 # Start the server listening on STDIO or http server for JSON-RPC msgs
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--http":
-        mcp.run(transport="streamable-http")
+def run_mcp(connection_type: str) -> None:
+    if connection_type == "http":
+        MCP.run(transport="streamable-http")
+    elif connection_type == "stdio":
+        MCP.run(transport="stdio")
     else:
-        mcp.run(transport="stdio")
+        raise ValueError("Connection type doesn't exist ! Try 'http' or 'stdio'")
+
+
+def main() -> None:
+    fire.Fire(
+        {
+            "start_mcp": run_mcp
+        }
+    )
+
+
+if __name__ == "__main__":
+    main()
 # stdio:npx @modelcontextprotocol/inspector uv run python dummy_mcp_server.py
 # ->Opens a browser where i can inspect tools(above funcs) and click "Run Tool"
 # !NO PRINT DEBUGGING to avoid agent reading print content as JSON-RPC = crash
