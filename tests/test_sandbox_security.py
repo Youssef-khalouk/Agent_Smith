@@ -11,7 +11,7 @@ print(addition(a=2, b=4))
 """
 
 async def main():
-    await sbx.initialize()
+    # await sbx.initialize()
     result = sbx.exec_code(code)
     for data in sbx.tools_meta_data:
         print(data)

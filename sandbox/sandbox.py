@@ -24,10 +24,8 @@ class SandBox():
             "For SWE-bench, pass get_patch().\n"
         ]
         self.tool_names: List[str] = []
+        asyncio.run(self.parse_mcp_tools())
     
-    async def initialize(self):
-        await self.parse_mcp_tools()
-
     async def parse_mcp_tools(self):
         tools: ListToolsResult = await self.mcp_client.get_tools()
         meta_data: str
