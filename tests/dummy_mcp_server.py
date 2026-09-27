@@ -19,6 +19,11 @@ def addition(a: int, b: float) -> int:
     """Add two numbers."""
     return a + b
 
+@MCP.tool()
+def print_person_name(person: Personne) -> str:
+    """Print the person object name."""
+    print(person.name)
+
 # Start the server listening on STDIO or http server for JSON-RPC msgs
 def run_mcp(connection_type: str) -> None:
     if connection_type == "http":

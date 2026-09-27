@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import fire
 from mcp import Client
 import asyncio
+import os
 
 
 SBX: SandboxConfig = SandboxConfig()
@@ -80,4 +81,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(e)

@@ -6,6 +6,7 @@ import resource
 from models import SandboxConfig
 from sandbox.mcp_client import Mcps
 from mcp_types._types import ListToolsResult # delme
+import fire
 
 
 SBX: SandboxConfig = SandboxConfig()
@@ -16,7 +17,12 @@ class SandBox():
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
         self.mcp_client: Mcps = Mcps()
-        self.tools_meta_data: List[str] = []
+        self.tools_meta_data_swe: List[str] = []
+        self.tools_meta_data_mbpp: List[str] = [
+            "- final_answer(answer: str) -> None: call this when the task is finished. "
+            "For MBPP, pass your solution code as a string. "
+            "For SWE-bench, pass get_patch().\n"
+        ]
         self.tool_names: List[str] = []
     
     async def initialize(self):
@@ -32,6 +38,11 @@ class SandBox():
             "boolean": "bool",
             "number": "float"
         }
+        self.tools_meta_data_swe = [
+            "- final_answer(answer: str) -> None: call this when the task is finished. "
+            "For MBPP, pass your solution code as a string. "
+            "For SWE-bench, pass get_patch().\n"
+        ]
         for tool in tools.tools:
             self.tool_names.append(tool.name)
 
@@ -53,8 +64,13 @@ class SandBox():
                     meta_data += f"{arg_type}"
             meta_data += f"):  "
             meta_data += f"Description: {tool.description}"
-            self.tools_meta_data.append(meta_data)
-                
+            self.tools_meta_data_swe.append(meta_data)
+
+    def get_mbpp_tools(self) -> List[str]:
+        return (self.tools_meta_data_mbpp)
+    
+    def get_swe_tools(self) -> List[str]:
+        return(self.tools_meta_data_swe)
 
     def _final_answer(self, value: str) -> None:
         self.final_answer_called = True
@@ -87,8 +103,19 @@ class SandBox():
 
         return output
 
-    def exec_code(self, code) -> str:
+    def exec_code(self, code: str,
+                  config_file: str | None = None) -> str:
         result: str
         result = self.create_environment(code)
         return result
+    
+
+def main() -> None:
+    sbx: SandBox = SandBox()
+    sbx.initialize()
+    fire.Fire(
+        {
+            ""
+        }
+    )
 
