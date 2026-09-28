@@ -1,8 +1,0 @@
-{
-    "instance_id": "sympy__sympy-23534",
-    "problem_statement": "The simplify function does not correctly simplify a particular mathematical expression involving symbolic powers. When the expression contains a negative exponent, the result is not reduced to the expected canonical form. Update the simplification logic so that equivalent expressions are simplified consistently.",
-    "docker_image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-23534:latest",
-    "eval_script": "#!/bin/bash\npython -m pytest sympy/simplify/tests/test_simplify.py -q",
-    "hints_text": "Check the simplify logic related to symbolic powers and negative exponents. Existing tests for powers may help identify the expected behavior.",
-    "repo": "sympy/sympy"
-}

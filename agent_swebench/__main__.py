@@ -18,7 +18,7 @@ def verify_file(file_path: str) -> None:
         print(f"Error: file '{path}' is not a file.")
         exit(1)
 
-def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
+def agent_swe_bench(task_file: str, output: str, model_name: str, provider_url: str):
     verify_file(task_file)
 
     with open(task_file, "r") as file:
@@ -48,4 +48,4 @@ def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
 
 
 if __name__ == "__main__":
-    fire.Fire(agent_mbpp)
+    fire.Fire(agent_swe_bench)

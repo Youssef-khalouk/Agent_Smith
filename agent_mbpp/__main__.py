@@ -39,7 +39,6 @@ def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
                     timeout_seconds=120)
 
     solution: SolutionOutput = agent.run(mbpp_task)
-    
 
     output_path = Path(output)
 

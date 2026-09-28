@@ -12,5 +12,8 @@ output/
 
 log.txt
 
+moulinette/
+
+tasks/
 # Environment keys
 .env
