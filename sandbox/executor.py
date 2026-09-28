@@ -1,11 +1,27 @@
 import builtins
 from models import SandboxConfig
-from typing import Dict
+from typing import Dict, List
 from pydantic import BaseModel
 import fire
+from mcp import Client
+import asyncio
+import os
 
 
 SBX: SandboxConfig = SandboxConfig()
+
+async def call_mcp_tool(function_name: str, kwargs: dict):
+    async with Client("http://localhost:8000/mcp") as client:
+        result = await client.call_tool(function_name, kwargs)
+
+    return result.structured_content
+
+def execute_tool(function_name: str) -> callable:
+    def func(**kwargs):
+        return asyncio.run(
+            call_mcp_tool(function_name, kwargs)
+        )
+    return func
 
 
 def safe_open(file, flag):
@@ -30,8 +46,8 @@ def final_answer(value: str) -> str:
     print ("__FINAL_ANSWER__SANDBOX__\n" + value)
     exit()
 
-def exec_code(code: str) -> str:
-    allowed_builtins: Dict[str, str] = {
+def exec_code(code: str, tool_names: List[str]) -> str:
+    name_space: Dict[str, str] = {
         "print": builtins.print,
         "int": builtins.int,
         "bool": builtins.bool,
@@ -53,7 +69,10 @@ def exec_code(code: str) -> str:
         "final_answer": final_answer,
         "__import__": safe_import
     }
-    exec(code, {"__builtins__": allowed_builtins})
+    for tool in tool_names:
+        name_space[tool] = execute_tool(tool)
+
+    exec(code, {"__builtins__": name_space})
 
 def main() -> None:
     fire.Fire({
@@ -62,4 +81,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(e)

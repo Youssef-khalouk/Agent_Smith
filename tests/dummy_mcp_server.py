@@ -1,23 +1,28 @@
 from mcp.server.mcpserver import MCPServer
 import sys
 import fire
-
+from pydantic import BaseModel
 
 # make an MCP server instance and give it the internal name "dummy"
 MCP = MCPServer("dummy")
 
+class Personne(BaseModel):
+    name: str
 
 @MCP.tool()
 def an_echo(text: str) -> str:
     """Repeat the text back."""
     return text
 
-
 @MCP.tool()
-def addition(a: int, b: int) -> int:
+def addition(a: int, b: float) -> int:
     """Add two numbers."""
     return a + b
 
+@MCP.tool()
+def print_person_name(person: Personne) -> str:
+    """Print the person object name."""
+    print(person.name)
 
 # Start the server listening on STDIO or http server for JSON-RPC msgs
 def run_mcp(connection_type: str) -> None:
@@ -27,7 +32,6 @@ def run_mcp(connection_type: str) -> None:
         MCP.run(transport="stdio")
     else:
         raise ValueError("Connection type doesn't exist ! Try 'http' or 'stdio'")
-
 
 def main() -> None:
     fire.Fire(

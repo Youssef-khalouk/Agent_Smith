@@ -1,39 +1,25 @@
+import asyncio
 from sandbox.sandbox import SandBox
+from sandbox.mcp_client import Mcps
 
 sbx = SandBox()
 
-test_code = """
-def add(x, y):
-    return x + y
-
-
-# test function
-
-print(add(2, 3))
-print(add(2, 5))
+code = """
+with open('/home/reda/Desktop/test.txt', 'r') as fd:
+    print('good')
+print(addition(a=2, b=4))
 """
 
-final_code = """
-final_answer("\\ndef add(x, y):\\n  return (x + y)")
-"""
+async def main():
+    # await sbx.initialize()
+    result = sbx.exec_code(code)
+    for data in sbx.tools_meta_data:
+        print(data)
+    # print(result)
 
-tool_calls = [test_code, final_code]
 
-# i = 0
-# while True:
-#     result = sbx.exec_code(tool_calls[i])
-#     print(result)
-#     i += 1
-#     if sbx.final_answer_called:
-#         print(f"Final_answer: {sbx.final_answer_value}")
-#         break
-
-#     if i == 2:
-#         print("Error: while loop did not break.")
-#         break
-
-with open("./sandbox/cli.py") as fd:
-    code = fd.read()
-
-result = sbx.exec_code(code)
-print(result)
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(e)
