@@ -37,3 +37,5 @@ test_client:
 	uv run python3 -m tests.test_tools
 test_tools:
 	uv run python -m tests.test_tools
+test_tools_in_container:
+	uv run python -m tests.test_tools_with_docker

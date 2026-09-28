@@ -199,4 +199,3 @@ def find_references(
                    f"find_references "
                    f"with offset={end} to continue.")
     return result
-git 

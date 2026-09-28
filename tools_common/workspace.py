@@ -1,10 +1,12 @@
 from pathlib import Path
+from .docker_manager import ContainerManager
 import os
 import tempfile
 import fnmatch
 import subprocess
 import re
 import ast
+
 # handles opening files, checking paths, and listing directory contents on
 # your local computer. It acts as the worker that read_file talks to
 
@@ -376,3 +378,82 @@ class LocalWorkspace():
         matches = matches[offset: offset + 100]
         return (matches, matches_num)
 
+
+class DockerWorkspace:
+    def __init__(self, host_repo_path,
+                 image_name="swebench/sweb.eval.x86_64.sympy_1776_sympy-14711"
+                 ):
+        self.host_repo_path = host_repo_path
+        self.root_dir = self.host_repo_path
+        self.image_name = image_name
+        self.container_manager = ContainerManager(image_name, host_repo_path)
+        self.local_workspace = LocalWorkspace(self.host_repo_path)
+
+    def start(self):
+        self.container_manager.pull()
+        self.container_manager.extract()
+        self.container_manager.start()
+
+    def die(self):
+        self.container_manager.die()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.die()
+
+    def read_file_text(self, relative_path: str):
+        return self.local_workspace.read_file_text(relative_path)
+
+    def edit_file_text(self, filepath: str, old_str: str, new_str: str):
+        return self.local_workspace.edit_file_text(filepath, old_str, new_str)
+
+    def list_directory_entries(self, directory: str = ".",
+                               pattern: str = "*", offset: int = 0):
+        return self.local_workspace.list_directory_entries(
+            directory, pattern, offset)
+
+    def search_files_for_pattern(self, pattern, file_pattern, offset):
+        return self.local_workspace.search_files_for_pattern(
+            pattern, file_pattern, offset
+        )
+
+    def search_function_or_class_definitions(
+            self, name, file_pattern, offset
+                ):
+        return self.local_workspace.search_function_or_class_definitions(
+            name, file_pattern, offset
+        )
+
+    def find_name_references(
+            self, name, file_path, line, file_pattern, offset
+            ):
+        return self.local_workspace.find_name_references(
+            name, file_path, line, file_pattern, offset
+        )
+
+    def run_command_in_folder(self, command: str, folder_path: str,
+                              timeout: int = 60):
+        # executes the command inside the container in /testbed and returns
+        # standard facts packet (stdout, stderr, exit_code, timed_out).
+        # git command will use this too to run it inside container.
+        target_folder = (Path(self.root_dir) / folder_path).resolve()
+        if not target_folder.is_relative_to(self.root_dir):
+            raise PathOutsideRootError("outside root")
+        return self.container_manager.exec(command, folder_path, timeout)
+
+
+# with DockerWorkspace("/home/ouchouir/agent") as dw:
+#     print(dw.container_manager.container.status)
+# print(dw.container_manager.container)
+# dw = DockerWorkspace("/home/ouchouir/agent")
+# dw.start()
+# first = dw.container_manager.container.id
+# dw.start()
+# second = dw.container_manager.container.id
+# assert first == second, "start() must be idempotent — same container!"
+# dw.die()
+# ----------------------------------------
+# # run with uv run python -m tools_common.workspace

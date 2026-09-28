@@ -1,6 +1,9 @@
 # This file has exactly one job: manage the lifecycle of the chamber.
+import subprocess
 import docker
 import uuid
+import shutil
+from pathlib import Path
 import queue
 import threading
 import shlex  # library used to safely quote strings for Unix command lines.
@@ -15,7 +18,7 @@ class ContainerManager:
     # ContainerManager -> Docker client -> Docker daemon
     def __init__(self, image_name, host_mount_path):
         self.image_name = image_name
-        self.host_mount_path = host_mount_path
+        self.host_mount_path = Path(host_mount_path).resolve()
         # store running container made by start() to be usd by exec() later
         self.container = None
         # If no custom environment variables are found, it automatically
@@ -48,63 +51,66 @@ class ContainerManager:
                 else:
                     exists = True
         if exists is False:
-            try:
-                self.client.images.pull(self.image_name)
-            except docker.errors.ImageNotFound:
-                return (f"Error: Image '{self.image_name}' does "
-                        f"not exist on the registry.")
-            except docker.errors.APIError:
-                return (f"Error: Invalid Docker image "
-                        f"reference '{self.image_name}'.")
-        return "method completed successfully"
+            self.client.images.pull(self.image_name)
+        return
 
     def start(self):
-        try:
-            container = self.client.containers.run(
-                image=self.image_name,
-                # Generates a Universally Unique Identifier (version 4)
-                # based on random numbers, Converts the UUID into a raw
-                # 32-character hexadecimal string
-                name=f"agent-smith-{uuid.uuid4().hex[:8]}",
-                command="sleep infinity",
-                detach=True,
-                volumes={
-                    # "/home/ouchouir/agent"
-                    self.host_mount_path: {
-                        "bind": "/testbed"
-                    }
-                },
-                working_dir="/testbed"
-            )
-        except docker.errors.ImageNotFound:
-            return (f"Error: Image '{self.image_name}' does "
-                    f"not exist on the registry.")
-        except docker.errors.DockerException:
-            return ("Error: Docker daemon is not running or socket "
-                    "is unreachable.")
-        except docker.errors.APIError as e:
-            # HTTP 409 Conflict occurs when a container with that name
-            # already exists
-            if e.status_code == 409 or "Conflict" in str(e):
-                return ("Error: A container with this name "
-                        "already exists.")
-            else:
-                return e
+        if self.container is not None:
+            self.container.reload()
+            if self.container.status == "running":
+                return
+        for con in self.client.containers.list(all=True):
+            if con.name.startswith("agent-smith-"):
+                con.remove(force=True)
+                self.container = None
+        container = self.client.containers.run(
+            image=self.image_name,
+            # Generates a Universally Unique Identifier (version 4)
+            # based on random numbers, Converts the UUID into a raw
+            # 32-character hexadecimal string
+            name=f"agent-smith-{uuid.uuid4().hex[:8]}",
+            command="sleep infinity",
+            detach=True,
+            volumes={
+                # "/home/ouchouir/agent"
+                self.host_mount_path: {
+                    "bind": "/testbed"
+                }
+            },
+            working_dir="/testbed"
+        )
         self.container = container
+        # git refuses to run git commands inside container as root because the
+        # host user is not root
+        # Tell Git inside container to trust /testbed directory
+        # Fixes 'fatal: detected dubious ownership in repository' error
+        exec_res = container.exec_run(
+            "git config --global --add safe.directory /testbed")
+        if exec_res.exit_code != 0:
+            raise RuntimeError(f"Failed to configure git safe.directory: "
+                               f"{exec_res.output.decode('utf-8')}")
+        self.container.reload()
         return container
 
-    def exec(self, command, timeout=60):
-        # he whole purpose of exec() is to take the command inside the tool
-        # run_command, intercept it everytime and run it inside the container
+    def exec(self, command, work_dir, timeout=60):
+        # the whole purpose of exec() is to take the command inside the tool
+        # run_command, intercepts it everytime and runs it inside the container
         if self.container is None:
-            return "no running containers at the moment"
+            raise RuntimeError(
+                "Cannot execute command: No container attached to manager.")
+        if work_dir == "." or not work_dir:
+            work_dir = "/testbed"
+        elif not work_dir.startswith("/"):
+            work_dir = f"/testbed/{work_dir}"
+        else:
+            work_dir = work_dir
         self.container.reload()
         # reload checks the status of the container NOW since the status
         # get cached from the moment it got created and python does not update
         # its status if something went wrong
         if self.container.status != "running":
-            return (f"Container is not running "
-                    f"(status: {self.container.status})")
+            raise RuntimeError(f"Cannot execute command: Container status "
+                               f"is '{self.container.status}'.")
         # Thread-safe FIFO queue implementation using queue.Queue.
         # Handles internal mutex locking and thread synchronization
         # to prevent race conditions.
@@ -122,7 +128,7 @@ class ContainerManager:
                 # containing (exit_code, output)
                 exec_result = self.container.exec_run(
                     cmd=comm,
-                    workdir="/testbed",
+                    workdir=work_dir,
                     # forces exec_run() to return a 2-tuple for output
                     # instead: (stdout_bytes, stderr_bytes).
                     demux=True
@@ -156,36 +162,37 @@ class ContainerManager:
         else:
             # then the command finished, let's fetch the resutls
             timed_out = False
-        if timed_out is True:
-            stdout = ""
-            stderr = ""
-            # container returns 124 so the code knows it timed out
-            exit_code = 124
-        else:
             # exec_run() returns an ExecResult named tuple object,
             # which has properties .exit_code and .output.
-            try:
-                # !! TRANSER RESULT FROM WORKER THREAD TO MAIN THREAD !!
-                exec_result = result_queue.get_nowait()
-                if isinstance(exec_result, Exception):
-                    # because of except above (q.put(e))
-                    stdout = f"Error during execution: {exec_result}"
-                    stderr = ""
-                    exit_code = 1
-                else:
-                    stdout_bytes, stderr_bytes = exec_result.output
-                    stdout = (stdout_bytes.decode(
-                        "utf-8", errors="replace") if stdout_bytes else "")
-                    stderr = (stderr_bytes.decode(
-                        "utf-8", errors="replace") if stderr_bytes else "")
-                    exit_code = exec_result.exit_code
-                    if exit_code == 124:
-                        timed_out = True
-            except queue.Empty:
-                stdout = ""
+        try:
+            # !! TRANSER RESULT FROM WORKER THREAD TO MAIN THREAD !!
+            exec_result = result_queue.get_nowait()
+            if isinstance(exec_result, Exception):
+                # because of except above (q.put(e))
+                stdout = f"Error during execution: {exec_result}"
                 stderr = ""
-                exit_code = 124
-                timed_out = True
+                exit_code = 1
+            else:
+                stdout_bytes, stderr_bytes = exec_result.output
+                stdout = (stdout_bytes.decode(
+                    "utf-8", errors="replace") if stdout_bytes else "")
+                stderr = (stderr_bytes.decode(
+                    "utf-8", errors="replace") if stderr_bytes else "")
+                exit_code = exec_result.exit_code
+                if exit_code == 124:
+                    # GNU timeout kills the process at T=timeout
+                    # (exit code 124). Because host
+                    # join() has a +2s buffer, thread.is_alive() stays
+                    # False and tricks the main
+                    # thread into thinking it finished normally.
+                    timed_out = True
+                else:
+                    timed_out = False
+        except queue.Empty:
+            stdout = ""
+            stderr = ""
+            exit_code = 124
+            timed_out = True
         return {
             "stdout": stdout,
             "stderr": stderr,
@@ -199,24 +206,56 @@ class ContainerManager:
         self.container.remove(force=True)
         self.container = None
 
+    def extract(self):
+        git_dir = self.host_mount_path / ".git"
+        stage_dir = (
+            self.host_mount_path.parent / f"tmp_{self.host_mount_path.name}")
+        if git_dir.exists():
+            return
+        if stage_dir.exists():
+            shutil.rmtree(stage_dir)
+        blueprint = self.client.containers.create(image=self.image_name)
+        try:
+            try:
+                # use subprocess to run terminal commands from inside a
+                # Python script.
+                subprocess.run(
+                    ["docker", "cp", f"{blueprint.id}:/testbed/.",
+                     stage_dir],
+                    # check makes sure python crashes if upper command fails
+                    check=True
+                )
+            finally:
+                blueprint.remove(force=True)
+            # Success! Move temporary folder to real destination
+            stage_dir.rename(self.host_mount_path)
+        except subprocess.CalledProcessError as err:
+            # Cleanup broken download in stage_dir
+            if stage_dir.exists():
+                shutil.rmtree(stage_dir)
+            raise RuntimeError(
+                f"Docker extraction failed: {err.stderr.strip()}") from err
+ 
 
-# manager = ContainerManager("swebench/sweb.eval.x86_64.sympy_1776_sympy-14711", "/home/ouchouir/agent")
-# print("\n")
-# print(manager.pull())
-# print("\n")
-# container = manager.start()
-# print()
-# print(manager.exec("echo 'hello from container'"))
-# print()
-# print(manager.exec("ls /non_existent_directory_123"))
-# print()
-# print(manager.exec(
-#     "mkdir -p /tmp/subshell_test && cd /tmp/subshell_test && pwd"))
-# print()
-# print(manager.exec("sleep 10", timeout=2))
-# manager.die()
-# with manager:
-#     manager.start()
-# #     # raise ValueError("CRASH!")
-#     print("Inside the block: Container is running and ready!")
-# manager.die()
+# if __name__ == "__main__":
+#     manager = ContainerManager("swebench/sweb.eval.x86_64.sympy_1776_sympy-14711", "/home/ouchouir/agent")
+#     print("\n")
+#     print(manager.pull())
+#     print("\n")
+#     container = manager.start()
+#     print()
+#     print(manager.exec("echo 'hello from container'"))
+#     print()
+#     print(manager.exec("ls /non_existent_directory_123"))
+#     print()
+#     print(manager.exec(
+#         "mkdir -p /tmp/subshell_test && cd /tmp/subshell_test && pwd"))
+#     print()
+#     print(manager.exec("sleep 10", timeout=2))
+#     manager.die()
+#     with manager:
+#         manager.die()
+#         manager.start()
+#         raise ValueError("CRASH!")
+#         print("Inside the block: Container is running and ready!")
+#     manager.die()

@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from tools_common.execution import run_command, get_patch
 from tools_common.filesystem import edit_file, list_files, read_file
-from tools_common.workspace import LocalWorkspace
+from tools_common.workspace import LocalWorkspace, DockerWorkspace
 import subprocess
 import tempfile
 import shutil
@@ -52,6 +52,7 @@ def main() -> None:
         (root / "empty").mkdir()
 
         workspace = LocalWorkspace(str(root))
+        # workspace = DockerWorkspace(str(root))
 
         print("1. read_file: normal file")
         result = read_file(workspace, "notes.txt")
@@ -318,7 +319,7 @@ def main() -> None:
         # ============================================================
 
         print("\n[TEST 30] Successful command")
-
+        
         result = run_command(workspace, "echo hello")
 
         print(result)
