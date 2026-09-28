@@ -34,7 +34,7 @@ class LLMProvider:
             start = time.time()
             try:
                 response = requests.post(
-                    f"{self.api_url}/chat/completions",
+                    f"{self.api_url}",
                     headers={"Authorization": f"Bearer {self._current_key()}"},
                     json={
                         "model": self.model_name,

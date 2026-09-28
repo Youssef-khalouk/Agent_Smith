@@ -1,3 +1,5 @@
+CONNECTION_TYPE ?= "http"
+
 ifeq ($(OS),Windows_NT)
     # Window
 	export UV_CACHE_DIR=C:/rag_env/uv_cache_dir
@@ -37,3 +39,10 @@ test_client:
 	uv run python3 -m tests.test_tools
 test_tools:
 	uv run python -m tests.test_tools
+
+
+
+# this is the commands that is requaired in the subject
+
+run_mbpp:
+	uv run python -m agent_mbpp --task-file mbpp_task.json --output output/mbpp_solution.json --model-name "openai/gpt-4o" --provider-url "https://openrouter.ai/api/v1/chat/completions"
