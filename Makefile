@@ -51,3 +51,5 @@ test_tools_in_container:
 run_mbpp:
 	uv run python -m agent_mbpp --task-file mbpp_task.json --output output/mbpp_solution.json --model-name "openai/gpt-4o" --provider-url "https://openrouter.ai/api/v1/chat/completions"
 
+run_swebench:
+	uv run python -m agent_swebench --task-file swe_bench_task.json --output output/swe_bench_solution.json --model-name "openai/gpt-4o" --provider-url "https://openrouter.ai/api/v1/chat/completions"

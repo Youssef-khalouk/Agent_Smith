@@ -30,7 +30,14 @@ def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
 
     api_keys = str(os.getenv("OPENROUTER_API_KEYS")).split(",")
     
-    agent = Agent(api_url=provider_url, model_name=model_name, api_keys=api_keys)
+    agent = Agent(  api_url=provider_url,
+                    model_name=model_name,
+                    api_keys=api_keys,
+                    max_iterations=10,
+                    max_input_tokens=6000,
+                    max_output_tokens=1500,
+                    timeout_seconds=120)
+
     solution: SolutionOutput = agent.run(mbpp_task)
     
 

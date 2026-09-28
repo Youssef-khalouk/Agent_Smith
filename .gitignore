@@ -9,6 +9,7 @@ __pycache__/
 cache/
 evaluations/
 output/
+
 log.txt
 
 # Environment keys

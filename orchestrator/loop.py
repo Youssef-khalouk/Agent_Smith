@@ -10,11 +10,11 @@ class Agent:
     def __init__(self,
                  api_url: str,
                  model_name: str,
-                 api_keys = [],
-                 max_iterations: int = 10,
-                 max_input_tokens: int = 6000,
-                 max_output_tokens: int = 1500,
-                 timeout_seconds: int = 120):
+                 api_keys: list[str],
+                 max_iterations: int,
+                 max_input_tokens: int,
+                 max_output_tokens: int,
+                 timeout_seconds: int):
 
         self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
         self.sandbox = SandBox()
