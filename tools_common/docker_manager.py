@@ -203,8 +203,13 @@ class ContainerManager:
     def die(self):
         if self.container is None:
             return
-        self.container.remove(force=True)
-        self.container = None
+        try:
+            self.container.remove(force=True)
+        except docker.errors.NotFound:
+            # Container was auto-removed (--rm) or already stopped/deleted
+            pass
+        finally:
+            self.container = None
 
     def extract(self):
         git_dir = self.host_mount_path / ".git"

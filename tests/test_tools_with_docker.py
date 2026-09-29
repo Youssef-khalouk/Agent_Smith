@@ -50,7 +50,7 @@ import shutil      # for rmtree — cleaning mount folders
 import subprocess  # for docker CLI calls (orphan planting, ps checks)
 import tempfile    # for fresh empty mount folders
 from pathlib import Path
-
+from mcp_tools_swebench import create_bound_tools
 from tools_common.workspace import DockerWorkspace
 from tools_common.filesystem import read_file, edit_file, list_files
 from tools_common.execution import run_command, get_patch
@@ -406,6 +406,110 @@ def phase_2_and_3() -> None:
                   "D18c: the edit did not reach the patch — git (door) "
                   "and files (window) are seeing DIFFERENT worlds!")
             print("  ✓ window-edit → door-git → patch: one consistent world")
+
+            print("\n--- [D19] Testing run_tests() Tool Behavior ---")
+
+            # Setup temporary host mount and workspace
+            mount_dir = Path("/tmp/test_d19_mount").resolve()
+            if mount_dir.exists():
+                  import shutil
+                  shutil.rmtree(mount_dir)
+
+            image_name = os.getenv(
+                  "SWEBENCH_IMAGE",
+                  "swebench/sweb.eval.x86_64.sympy_1776_sympy-14711:latest",
+            )
+
+            ws = DockerWorkspace(mount_dir, image_name)
+            ws.start()
+
+            # -------------------------------------------------------------
+            # 1. Subtest A: Normal Fast Execution
+            # -------------------------------------------------------------
+            print("\n[D19a] Testing standard eval execution...")
+            fake_eval_a = (
+                  '#!/bin/bash\necho "test_1 PASSED"\necho "test_2 FAILED"\nsleep 1\n'
+            )
+
+            tools_a = create_bound_tools(ws, eval_script=fake_eval_a)
+            run_tests_a = next(t for t in tools_a if t.__name__ == "run_tests")
+
+            result_a = run_tests_a()
+            print("D19a Result:")
+            print(result_a)
+
+            assert "test_1 PASSED" in result_a, "Failed: stdout missing test_1"
+            assert "test_2 FAILED" in result_a, "Failed: stdout missing test_2"
+            assert "Timed Out: False" in result_a, "Failed: false positive timeout"
+            print("  ✓ Subtest A passed!")
+
+            # -------------------------------------------------------------
+            # 2. Subtest B: Tail-Capping Verification
+            # -------------------------------------------------------------
+            print("\n[D19b] Testing tail-capping with large output...")
+            # Generates 15,000 characters of output
+            fake_eval_b = (
+                  '#!/bin/bash\npython3 -c "print(\'START_\' + \'x\'*15000 + \'_END\')"\n'
+            )
+
+            tools_b = create_bound_tools(ws, eval_script=fake_eval_b)
+            run_tests_b = next(t for t in tools_b if t.__name__ == "run_tests")
+
+            result_b = run_tests_b()
+
+            assert "_END" in result_b, "Failed: tail was dropped!"
+            assert "START_" not in result_b, "Failed: head was NOT truncated!"
+            print("  ✓ Subtest B passed (tail preserved, head truncated)!")
+
+            # -------------------------------------------------------------
+            # 3. Subtest C: Real Eval Script Run (Patient execution)
+            # -------------------------------------------------------------
+            real_eval_script = real_eval_script = """#!/bin/bash
+            source /opt/miniconda3/bin/activate testbed
+            ./bin/test sympy/core/tests/test_symbol.py
+            """
+            import time
+            if real_eval_script:
+                  print("\n[D19c] Running REAL task eval script (this may take a few minutes)...")
+                  tools_c = create_bound_tools(ws, eval_script=real_eval_script)
+                  run_tests_c = next(t for t in tools_c if t.__name__ == "run_tests")
+
+                  start_time = time.time()
+                  result_c = run_tests_c()
+                  elapsed = time.time() - start_time
+
+                  print(f"Real eval completed in {elapsed:.1f}s")
+                  print("Real Eval Output (Tail):")
+                  # print(result_c[-1000:])
+                  print(result_c)
+            else:
+                  print("\n[D19c] Skipping real eval run (SWEBENCH_EVAL_SCRIPT not set in env).")
+            print("\n✓ [D19] ALL TOOL TESTS PASSED SUCCESSFULLY!")
+
+            print("\n--- [D20] Testing Patch Pollution Prevention ---")
+            test_script = '#!/bin/bash\necho "Running D20 verification tests..."\n'
+            tools = create_bound_tools(ws, eval_script=test_script)
+
+            run_tests_tool = next(t for t in tools if t.__name__ == "run_tests")
+            get_patch_tool = next(t for t in tools if t.__name__ == "get_patch")
+
+            # 2. Step 1: Execute run_tests()
+            print("[D20] Executing run_tests()...")
+            test_output = run_tests_tool()
+            assert "Running D20 verification tests..." in test_output
+
+            # 3. Step 2: Fetch patch via get_patch()
+            print("[D20] Fetching patch via get_patch()...")
+            patch_content = get_patch_tool()
+
+            # 4. Step 3: Assert temporary script artifact is NOT in patch
+            assert "run_agent_tests.sh" not in patch_content, (
+                  "CRITICAL: Patch pollution detected! "
+                  "'run_agent_tests.sh' was found inside get_patch()."
+            )
+
+            print("  ✓ [D20] PASSED: Patch is 100% clean of test runner pollution!")
+            ws.die()
 
     finally:
         shutil.rmtree(mount, ignore_errors=True)
