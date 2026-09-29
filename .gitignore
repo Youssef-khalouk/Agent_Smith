@@ -8,6 +8,12 @@ __pycache__/
 # Temporary execution output directories
 cache/
 evaluations/
+output/
 
+log.txt
+
+moulinette/
+
+tasks/
 # Environment keys
 .env

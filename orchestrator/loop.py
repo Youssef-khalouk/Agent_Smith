@@ -1,28 +1,22 @@
 from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput, StepMetrics
 from .extraction import extract_code
-from dotenv import load_dotenv
 from sandbox.sandbox import SandBox
 from .llm_providers import LLMProvider
-import os
 from .prompts import Prompts
 import time
 
 
-load_dotenv()
-
-
 class Agent:
     def __init__(self,
-                 max_iterations: int = 10,
-                 max_input_tokens: int = 6000,
-                 max_output_tokens: int = 1500,
-                 timeout_seconds: int = 120):
-        
-        self.provider = LLMProvider(
-            api_url=os.environ.get("API_URL"),
-            api_keys=str(os.getenv("OPENROUTER_API_KEYS")).split(","),
-            model_name=os.environ.get("MODEL_NAME"),
-        )
+                 api_url: str,
+                 model_name: str,
+                 api_keys: list[str],
+                 max_iterations: int,
+                 max_input_tokens: int,
+                 max_output_tokens: int,
+                 timeout_seconds: int):
+
+        self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
         self.sandbox = SandBox()
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
@@ -33,11 +27,13 @@ class Agent:
     def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
         if isinstance(task, MBPPTaskInput):
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_mbpp_tools()])
             return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
         if isinstance(task, SWEBenchTaskInput):
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
             return task.instance_id, "swebench", Prompts.swebench_task(task)
         raise TypeError(f"Unsupported task type: {type(task).__name__}")
-    
+
     def _limit_error(self, steps, start) -> str | None:
         if time.time() - start >= self.timeout_seconds:
             return "Timeout reached"
@@ -46,7 +42,7 @@ class Agent:
         if sum(s.output_tokens for s in steps) >= self.max_output_tokens:
             return "Output token limit reached"
         return None
-    
+
     def _metrics(self, step, result, extracted_code, output) -> StepMetrics:
         return StepMetrics(
             step=step,
@@ -60,7 +56,7 @@ class Agent:
             sandbox_output=output,
             retries=result.retries,
         )
-    
+
     def _build_output(self, task_id, benchmark, success, solution, steps, start, error) -> SolutionOutput:
         return SolutionOutput(
             task_id=task_id,
@@ -99,8 +95,7 @@ class Agent:
                 break
 
             extracted_code, thought = extract_code(result.text)
-            print("")
-            print(thought)
+            print("\n" + thought)
             if extracted_code is None:
                 observation = Prompts.no_python_code_found()
             else:
@@ -120,6 +115,4 @@ class Agent:
                 break
         else:
             error = "Max iterations reached without final_answer."
-        import json
-        print(json.dumps(messages, indent=4))
         return self._build_output(task_id, benchmark, success, solution, steps, start, error)
