@@ -39,9 +39,7 @@ class LLMProvider:
                     json={
                         "model": self.model_name,
                         "messages": messages,
-                        # "tools": self.tools,
-                        "stop": stop_sequences,
-                        "max_tokens": 1000,
+                        "stop": stop_sequences
                     },
                     timeout=60,
                 )

@@ -1,23 +1,24 @@
+include .env
+export
+
 CONNECTION_TYPE ?= "http"
-API_URL         ?= "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME      ?= "openai/gpt-4o"
 
 ifeq ($(OS),Windows_NT)
-    # Window
+	# Window
 	export UV_CACHE_DIR=C:/rag_env/uv_cache_dir
 	export UV_PROJECT_ENVIRONMENT=C:/rag_env/uv_venv
 
 else
-    ifneq ($(wildcard /mnt/c/RAG),)
-        # WSL
+	ifneq ($(wildcard /mnt/c/AGENT_SMITH),)
+		# WSL
 		export UV_CACHE_DIR=$(HOME)/.cache/uv_cache_dir
 		export UV_PROJECT_ENVIRONMENT=$(HOME)/.cache/uv_venv
 
-    else
-        # Linux cluster
+	else
+		# Linux cluster
 		export UV_CACHE_DIR=/tmp/uv_cache_dir
 		export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
-    endif
+	endif
 endif
 
 ####################################################
@@ -48,15 +49,33 @@ validate_mbpp:
 validate_swebench:
 	cd moulinette && uv run python3 -m moulinette validate --benchmark swebench --task_file ../tasks/swebench_task.json  --solution_file ../output/swebench_solution.json
 
-mbpp: dump_mbpp run_mbpp validate_mbpp
 
-swebench: dump_swebench run_swebench validate_swebench
+mbpp:
+	@echo "\n----------------------- DUMP MBPP ----------------------------\n"
+	@$(MAKE) dump_mbpp
+	@echo "\n----------------------- RUN MBPP -----------------------------\n"
+	@$(MAKE) run_mbpp
+	@echo "\n----------------------- VALIDATE MBPP ------------------------\n"
+	@$(MAKE) validate_mbpp
+
+swebench:
+	@echo "\n----------------------- DUMP SWEBENCH ----------------------------\n"
+	@$(MAKE) dump_swebench
+	@echo "\n----------------------- RUN SWEBENCH -----------------------------\n"
+	@$(MAKE) run_swebench
+	@echo "\n----------------------- VALIDATE SWEBENCH ------------------------\n"
+	@$(MAKE) validate_swebench
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
+
+fclean: clean
+	rm -rf log.txt
+	rm -rf output
+	rm -rf tasks
 
 #######################################################
 
