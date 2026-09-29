@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 import fire
 from models import SWEBenchTaskInput, SolutionOutput
 from pathlib import Path
