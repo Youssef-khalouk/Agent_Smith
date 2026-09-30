@@ -6,9 +6,13 @@ import fire
 from mcp import Client
 import asyncio
 import os
+from sandbox.sandbox import SandBox
+import json
+from sandbox.security import configurate_sandbox
 
 
 SBX: SandboxConfig = SandboxConfig()
+
 
 async def call_mcp_tool(function_name: str, kwargs: dict):
     async with Client("http://localhost:8000/mcp") as client:
@@ -46,7 +50,10 @@ def final_answer(value: str) -> str:
     print ("__FINAL_ANSWER__SANDBOX__\n" + value)
     exit()
 
-def exec_code(code: str, tool_names: List[str]) -> str:
+def exec_code(code: str,
+              tool_names: List[str],
+              config_file: str | None) -> str:
+    configurate_sandbox(config_file, SBX)
     name_space: Dict[str, str] = {
         "print": builtins.print,
         "int": builtins.int,
