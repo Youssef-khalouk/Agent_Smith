@@ -26,6 +26,30 @@ class SandboxConfig(BaseModel):
     max_execution_time_seconds: int = 30
     max_memory_mb: int = 512
 
+    def get_authorized_imports(self) -> List[str]:
+        return (self.authorized_imports)
+
+    def get_authorized_directories(self) -> List[str]:
+        return (self.allowed_directories)
+    
+    def get_max_execution_time(self) -> int:
+        return (self.max_execution_time_seconds)
+    
+    def get_max_memory_mb(self) -> int:
+        return (self.max_memory_mb)
+
+    def set_authorized_imports(self, value: List[str]) -> List[str]:
+        self.authorized_imports = value
+
+    def set_authorized_directories(self, value: List[str]) -> List[str]:
+        self.allowed_directories = value
+    
+    def set_max_execution_time(self, value: int) -> int:
+        self.max_execution_time_seconds = value
+    
+    def set_max_memory_mb(self, value: int) -> int:
+        self.max_memory_mb = value
+
 
 class MBPPTaskInput(BaseModel):
     """Input for MBPP task evaluation."""

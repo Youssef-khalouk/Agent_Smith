@@ -8,6 +8,9 @@ from sandbox.mcp_client import Mcps
 from mcp_types._types import ListToolsResult # delme
 import fire
 import asyncio
+import json
+from sandbox.security import configurate_sandbox
+
 
 SBX: SandboxConfig = SandboxConfig()
 
@@ -19,50 +22,66 @@ class SandBox():
         self.mcp_client: Mcps = Mcps()
         self.tools_meta_data_swe: List[str] = []
         self.tools_meta_data_mbpp: List[str] = [
-            "- final_answer(answer: str) -> None: call this when the task is finished. "
+            "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
         ]
         self.tool_names: List[str] = []
         asyncio.run(self.parse_mcp_tools())
+    
+    def _extract_data(self, tool: dict) -> str:
+        def __extract_type(data: str) -> str:
+            type_hints: Dict[str, str] = {
+                "integer": "int",
+                "string": "str",
+                "boolean": "bool",
+                "number": "float",
+                "null": "None"
+            }
+            arg_type = type_hints.get(data, None)
+            if not arg_type:
+                arg_type = data
+            return arg_type
+
+        meta_data = f"- def {tool.name}("
+        input_shema = tool.input_schema["properties"]
+        for index, arg in enumerate(input_shema):
+            arg_type = ""
+            if index != 0:
+                meta_data += ", "
+            meta_data += f"{arg}: "
+            if "$ref" in input_shema[arg]:
+                meta_data += f"{input_shema[arg]['$ref'][8:]}"
+            elif "type" in input_shema[arg]:
+                arg_type = __extract_type(input_shema[arg]["type"])
+            elif "anyOf" in input_shema[arg]:
+                for i, _type in enumerate(input_shema[arg]["anyOf"]):
+                    if i != 0:
+                        arg_type += " | "
+                    arg_type += __extract_type(_type["type"])
+            meta_data += f"{arg_type}"
+
+        meta_data += f"):  "
+        # meta_data += f"Description: {tool.description}"
+        return meta_data
+    
+    def pull_image(image: str) -> None:
+        pass
+
+    def shotdown_image(image: str = "") -> None:
+        pass
 
     async def parse_mcp_tools(self):
         tools: ListToolsResult = await self.mcp_client.get_tools()
-        meta_data: str
-        arg_type: str
-        type_hints: Dict[str, str] = {
-            "integer": "int",
-            "string": "str",
-            "boolean": "bool",
-            "number": "float"
-        }
+
         self.tools_meta_data_swe = [
-            "- final_answer(answer: str) -> None: call this when the task is finished. "
+            "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
         ]
         for tool in tools.tools:
             self.tool_names.append(tool.name)
-
-        for tool in tools.tools:
-            meta_data = ""
-            meta_data += f"{tool.name}("
-            input_shema = tool.input_schema["properties"]
-            for index, arg in enumerate(input_shema):
-                if index != 0:
-                    meta_data += ", "
-                meta_data += f"{arg}: "
-                if "$ref" in input_shema[arg]:
-                    meta_data += f"{input_shema[arg]['$ref'][8:]}"
-                else:
-                    if input_shema[arg]['type'] in type_hints:
-                        arg_type = type_hints[input_shema[arg]['type']]
-                    else:
-                        arg_type = input_shema[arg]['type']
-                    meta_data += f"{arg_type}"
-            meta_data += f"):  "
-            meta_data += f"Description: {tool.description}"
-            self.tools_meta_data_swe.append(meta_data)
+            self.tools_meta_data_swe.append(self._extract_data(tool))
 
     def get_mbpp_tools(self) -> List[str]:
         return (self.tools_meta_data_mbpp)
@@ -74,9 +93,14 @@ class SandBox():
         self.final_answer_called = True
         self.final_answer_value = value
 
-    def create_environment(self, code: str) -> str:
+    def create_environment(self, code: str,
+                           config_file: str | None) -> str:
         child_process = subprocess.Popen(
-            ["uv", "run", "python3", "-m", "sandbox.executor", "exec", f"--code={code}", f"--tool_names={self.tool_names}"],
+            ["uv", "run", "python3", "-m",
+             "sandbox.executor", "exec",
+             f"--code={code}",
+             f"--tool_names={self.tool_names}",
+             f"--config_file={config_file}"],
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -104,16 +128,17 @@ class SandBox():
     def exec_code(self, code: str,
                   config_file: str | None = None) -> str:
         result: str
-        result = self.create_environment(code)
+        configurate_sandbox(config_file, SBX)
+        result = self.create_environment(code, config_file)
         return result
     
 
 def main() -> None:
-    sbx: SandBox = SandBox()
-    sbx.initialize()
+    # sbx: SandBox = SandBox()
     fire.Fire(
         {
-            ""
+            "--mcp-stdio": "",
+            "--mcp-server": ""
         }
     )
 

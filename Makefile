@@ -90,11 +90,14 @@ test_sbx:
 test_orchestrator:
 	uv run python -m tests.test_orchestrator
 
-start_mcp_server:
-	uv run python3 -m tests.dummy_mcp_server start_mcp --connection_type=$(CONNECTION_TYPE) >> log.txt 2>&1 &
+start_mcp_server_http:
+	uv run python3 mcp_tools_swebench.py --http >> log.txt 2>&1 &
+
+start_mcp_server_stdio:
+	uv run python3 mcp_tools_swebench.py >> log.txt 2>&1 &
 
 stop_mcp_server:
-	pkill -f "tests.dummy_mcp_server start_mcp"
+	pkill -f "mcp_tools_swebench"
 
 test_client:
 	uv run python3 -m tests.test_tools

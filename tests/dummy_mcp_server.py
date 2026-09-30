@@ -33,16 +33,16 @@ def run_mcp(connection_type: str) -> None:
     else:
         raise ValueError("Connection type doesn't exist ! Try 'http' or 'stdio'")
 
-def main() -> None:
-    fire.Fire(
-        {
-            "start_mcp": run_mcp
-        }
-    )
+# def main() -> None:
+#     fire.Fire(
+#         {
+#             "start_mcp": run_mcp
+#         }
+#     )
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 # stdio:npx @modelcontextprotocol/inspector uv run python dummy_mcp_server.py
 # ->Opens a browser where i can inspect tools(above funcs) and click "Run Tool"
 # !NO PRINT DEBUGGING to avoid agent reading print content as JSON-RPC = crash
