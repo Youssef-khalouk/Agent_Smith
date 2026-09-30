@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 import fire
 import shutil
 from models import SWEBenchTaskInput, SolutionOutput

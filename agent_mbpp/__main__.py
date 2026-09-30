@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 import fire
 from models import MBPPTaskInput, SolutionOutput
 from pathlib import Path
