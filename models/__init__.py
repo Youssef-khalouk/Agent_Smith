@@ -3,7 +3,8 @@ from .models import (SandboxConfig,
                     SWEBenchTaskInput,
                     StepMetrics,
                     SolutionOutput,
-                    LLMResponse)
+                    LLMResponse,
+                    DockerImage)
 
 
 __version__ = "1.0.0"
@@ -16,5 +17,6 @@ __all__ = [
     "SWEBenchTaskInput",
     "StepMetrics",
     "SolutionOutput",
-    "LLMResponse"
+    "LLMResponse",
+    "DockerImage"
 ]

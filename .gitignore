@@ -13,6 +13,7 @@ output/
 log.txt
 
 moulinette/
+messages.txt
 
 tasks/
 # Environment keys

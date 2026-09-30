@@ -115,8 +115,16 @@ class SolutionOutput(BaseModel):
 
 
 class LLMResponse(BaseModel):
+    """llm response model for validation."""
     text: str
     input_tokens: int
     output_tokens: int
     latency_ms: float
     retries: int = 0
+
+class DockerImage(BaseModel):
+    """input of docker image info."""
+    instance_id: str = Field(..., description="SWE-bench instance identifier (e.g., 'sympy__sympy-23534')")
+    docker_image: str = Field(..., description="Full Docker image name to pull (e.g., 'swebench/sweb.eval.x86_64.sympy_1776_sympy-23534:latest')")
+    eval_script: str = Field(..., description="Bash script to run inside the container to evaluate the patch")
+    repo: str = Field(default="", description="Repository name (e.g., 'sympy/sympy')")

@@ -1,4 +1,4 @@
-from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput, StepMetrics
+from models import MBPPTaskInput, SWEBenchTaskInput, SolutionOutput, StepMetrics, DockerImage
 from .extraction import extract_code
 from sandbox.sandbox import SandBox
 from .llm_providers import LLMProvider
@@ -23,6 +23,12 @@ class Agent:
         self.max_output_tokens: int = max_output_tokens
         self.timeout_seconds = timeout_seconds
         self.tools: str = ""
+        self.messages: list = []
+        self.docker_image: DockerImage | None = None
+    
+    def set_docker_image(self, docker_image: DockerImage) -> None:
+        self.docker_image = docker_image
+        self.sandbox.pull_image(docker_image)
 
     def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
@@ -76,7 +82,7 @@ class Agent:
     def run(self, task: MBPPTaskInput | SWEBenchTaskInput) -> SolutionOutput:
         task_id, benchmark, task_prompt = self._describe(task)
         start = time.time()
-        messages = [
+        self.messages = [
             {"role": "system", "content": Prompts.system_prompt(self.tools)},
             {"role": "user", "content": task_prompt}
         ]
@@ -89,7 +95,7 @@ class Agent:
             if error:
                 break
             try:
-                result = self.provider.generate(messages=messages, stop_sequences=["<end_code>"])
+                result = self.provider.generate(messages=self.messages, stop_sequences=["<end_code>"])
             except Exception as e:
                 error = f"LLM error: {type(e).__name__}: {e}"
                 break
@@ -106,8 +112,8 @@ class Agent:
             
             steps.append(self._metrics(step, result, extracted_code, str(observation)))
             
-            messages.append({"role": "assistant", "content": result.text})
-            messages.append({"role": "user", "content": Prompts.observation(observation)})
+            self.messages.append({"role": "assistant", "content": result.text})
+            self.messages.append({"role": "user", "content": Prompts.observation(observation)})
 
             if self.sandbox.final_answer_called:
                 solution = self.sandbox.final_answer_value
@@ -115,4 +121,6 @@ class Agent:
                 break
         else:
             error = "Max iterations reached without final_answer."
+        if self.docker_image:
+            self.sandbox.shotdown_image()
         return self._build_output(task_id, benchmark, success, solution, steps, start, error)
