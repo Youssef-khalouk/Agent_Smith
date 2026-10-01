@@ -29,7 +29,9 @@ class SandBox():
             "For SWE-bench, pass get_patch().\n"
         ]
         self.tool_names: List[str] = []
+        self.functions_keys_list: Dict[str, List[str]] = {}
         asyncio.run(self.parse_mcp_tools())
+
     
     def get_error(self) -> str:
         return (self.error)
@@ -65,16 +67,19 @@ class SandBox():
             return arg_type
         arg_type: str
         return_type: str
+        keys: List[str] = []
         meta_data = f"- def {tool.name}("
         input_schema = tool.input_schema["properties"]
         output_schema = tool.output_schema["properties"]
         for index, arg in enumerate(input_schema):
+            keys.append(arg)
             arg_type = ""
             if index != 0:
                 meta_data += ", "
             meta_data += f"{arg}: "
             arg_type = __extract_types(arg, input_schema)
             meta_data += f"{arg_type}"
+        self.functions_keys_list[tool.name] = keys
         meta_data += f") -> "
         return_type = __extract_types("result", output_schema)
         meta_data += f"{return_type}: "
@@ -82,7 +87,7 @@ class SandBox():
         return meta_data
     
     def pull_image(self, image: DockerImage) -> None:
-        pass
+        j = image.model_dump_json()
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
         pass
@@ -119,7 +124,8 @@ class SandBox():
              "sandbox.executor", "exec",
              f"--code={code}",
              f"--tool_names={self.tool_names}",
-             f"--config_file={config_file}"],
+             f"--config_file={config_file}",
+             f"--functions_keys={self.functions_keys_list}"],
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,

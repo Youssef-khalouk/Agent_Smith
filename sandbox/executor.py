@@ -23,8 +23,15 @@ async def call_mcp_tool(function_name: str, kwargs: dict):
         exit(1)
     return result.structured_content
 
-def execute_tool(function_name: str) -> callable:
-    def func(**kwargs):
+def execute_tool(function_name: str, functions_keys) -> callable:
+    def func(*args, **kwargs):
+        func_args = functions_keys.get(function_name, [])
+        for i, key in enumerate(func_args):
+            if i < len(args):
+                kwargs[key] = args[i]
+            else:
+                break
+        print(kwargs)
         return asyncio.run(
             call_mcp_tool(function_name, kwargs)
         )
@@ -55,7 +62,8 @@ def final_answer(value: str) -> str:
 
 def exec_code(code: str,
               tool_names: List[str],
-              config_file: str | None) -> str:
+              config_file: str | None,
+              functions_keys: dict[str, list[str]]) -> str:
     configurate_sandbox(config_file, SBX)
     name_space: Dict[str, str] = {
         "print": builtins.print,
@@ -80,7 +88,7 @@ def exec_code(code: str,
         "__import__": safe_import
     }
     for tool in tool_names:
-        name_space[tool] = execute_tool(tool)
+        name_space[tool] = execute_tool(tool, functions_keys)
 
     exec(code, {"__builtins__": name_space})
 
