@@ -17,6 +17,10 @@ async def main():
         # print(name)
     # print(result)
     mcp = Mcps()
+    tools = await mcp.get_tools()
+    # for tpl in tools.tools[0]:
+    #     print(tpl)
+    # exit()
     for data in sbx.tools_meta_data_swe:
         print(data)
     exit()

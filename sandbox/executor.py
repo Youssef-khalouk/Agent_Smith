@@ -15,9 +15,12 @@ SBX: SandboxConfig = SandboxConfig()
 
 
 async def call_mcp_tool(function_name: str, kwargs: dict):
-    async with Client("http://localhost:8000/mcp") as client:
-        result = await client.call_tool(function_name, kwargs)
-
+    try:
+        async with Client("http://localhost:8000/mcp") as client:
+            result = await client.call_tool(function_name, kwargs)
+    except Exception as e:
+        print (f"MCP server connection failed: {e}")
+        exit(1)
     return result.structured_content
 
 def execute_tool(function_name: str) -> callable:
