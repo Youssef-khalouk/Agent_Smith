@@ -6,13 +6,15 @@ import traceback
 sbx = SandBox()
 
 code = """
-import math
-print(addition(a=2, b=4))
+import heapq
+print(sorted([100, 5, 10, 20]))
 """
 
 async def main():
     # await sbx.initialize()
-    # result = sbx.exec_code(code=code, config_file="./sandbox_template.json")
+    result = sbx.exec_code(code=code, config_file="./sandbox_template.json")
+    print(result)
+    exit()
     # for name in sbx.tool_names:
         # print(name)
     # print(result)

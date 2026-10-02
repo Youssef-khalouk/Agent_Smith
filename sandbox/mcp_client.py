@@ -35,7 +35,10 @@ class Mcps():
     async def http_connection(self, url: str, tool_call: Tuple[str, Any]) -> None:
         try:
             async with Client(url) as client:
-                result = await client.call_tool(tool_call[0], tool_call[1])
+                result = await client.call_tool(
+                    tool_call[0],
+                    tool_call[1]
+                )
         except Exception as e:
             print(e)
         return (result.structured_content)

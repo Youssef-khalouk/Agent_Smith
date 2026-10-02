@@ -66,6 +66,7 @@ def exec_code(code: str,
               functions_keys: dict[str, list[str]]) -> str:
     configurate_sandbox(config_file, SBX)
     name_space: Dict[str, str] = {
+        "sorted": builtins.sorted,
         "print": builtins.print,
         "int": builtins.int,
         "bool": builtins.bool,
