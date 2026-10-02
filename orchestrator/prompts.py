@@ -1,5 +1,15 @@
 from models import MBPPTaskInput, SWEBenchTaskInput
 
+importent = """
+IMPORTANT:
+- You must output executable Python code, and your thought process.
+- NEVER answer with normal conversational text.
+- Do not output your thinking nor reasoning nor explanation.
+- Every response must contain thought (Thought: ...) followed by Python code block.
+- The Python code must be between ```Python (python code) ```.
+- Use the available tools through Python code.
+- Make sure to test code before you call final_answer(answer).
+"""
 
 class Prompts:
 
@@ -13,6 +23,7 @@ class Prompts:
             f"{tools}\n"
             "Use print() to see results. The output will be sent back to you as \"Observation:\".\n"
             "\n"
+            f"{importent}\n"
             "Example:\n"
             "Thought: I need to open main.py first.\n"
             "```python\n"
