@@ -7,7 +7,7 @@ class Prompts:
     def system_prompt(tools: str = "") -> str:
         return (
             "You are an autonomous coding agent.\n"
-            "Each turn, write a short Thought always, then ONE python code block, then <end_code>.\n"
+            "Each turn, write a short Thought always, then ONE python code block, make sure its one block, then <end_code>.\n"
             "\n"
             "Functions available inside the code block:\n"
             f"{tools}\n"

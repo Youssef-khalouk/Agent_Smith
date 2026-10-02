@@ -5,17 +5,20 @@ CONNECTION_TYPE ?= "http"
 
 ifeq ($(OS),Windows_NT)
 	# Window
+	export VIRTUAL_ENV=C:/rag_env/uv_venv
 	export UV_CACHE_DIR=C:/rag_env/uv_cache_dir
 	export UV_PROJECT_ENVIRONMENT=C:/rag_env/uv_venv
 
 else
 	ifneq ($(wildcard /mnt/c/AGENT_SMITH),)
 		# WSL
+		export VIRTUAL_ENV=$(HOME)/.cache/uv_venv
 		export UV_CACHE_DIR=$(HOME)/.cache/uv_cache_dir
 		export UV_PROJECT_ENVIRONMENT=$(HOME)/.cache/uv_venv
 
 	else
 		# Linux cluster
+		export VIRTUAL_ENV=/tmp/uv_venv
 		export UV_CACHE_DIR=/tmp/uv_cache_dir
 		export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
 	endif
