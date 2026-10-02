@@ -8,7 +8,7 @@ IMPORTANT:
 - Every response must contain thought (Thought: ...) followed by Python code block.
 - The Python code must be between ```Python (python code) ```.
 - Use the available tools through Python code.
-- Make sure to test code before you call final_answer(answer).
+- Make sure to test code before you call final_answer.
 """
 
 class Prompts:

@@ -14,8 +14,8 @@ load_dotenv()
 def print_conversation(messages):
     content = ""
     for d in messages:
-        for k, v in d.items():
-            content += f"=====================[{k}]==================\n{v}\n\n\n\n\n"
+        content += f"=====================================[{d.get('role', 'None')}]"
+        content += f"=====================================\n{d.get('content', 'None')}\n\n\n\n\n"
     with open("messages.txt", "w") as file:
         file.write(content)
 
