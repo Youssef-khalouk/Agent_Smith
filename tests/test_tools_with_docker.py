@@ -419,7 +419,7 @@ def phase_2_and_3() -> None:
                   "SWEBENCH_IMAGE",
                   "swebench/sweb.eval.x86_64.sympy_1776_sympy-14711:latest",
             )
-
+            from mcp_tools_swebench import WorkspaceHolder
             ws = DockerWorkspace(mount_dir, image_name)
             ws.start()
 
@@ -430,8 +430,10 @@ def phase_2_and_3() -> None:
             fake_eval_a = (
                   '#!/bin/bash\necho "test_1 PASSED"\necho "test_2 FAILED"\nsleep 1\n'
             )
-
-            tools_a = create_bound_tools(ws, eval_script=fake_eval_a)
+            holder = WorkspaceHolder()
+            holder.workspace = ws
+            holder.eval_script = fake_eval_a
+            tools_a = create_bound_tools(holder)
             run_tests_a = next(t for t in tools_a if t.__name__ == "run_tests")
 
             result_a = run_tests_a()
@@ -451,8 +453,10 @@ def phase_2_and_3() -> None:
             fake_eval_b = (
                   '#!/bin/bash\npython3 -c "print(\'START_\' + \'x\'*15000 + \'_END\')"\n'
             )
-
-            tools_b = create_bound_tools(ws, eval_script=fake_eval_b)
+            holder = WorkspaceHolder()
+            holder.workspace = ws
+            holder.eval_script = fake_eval_b
+            tools_b = create_bound_tools(holder)
             run_tests_b = next(t for t in tools_b if t.__name__ == "run_tests")
 
             result_b = run_tests_b()
@@ -471,7 +475,10 @@ def phase_2_and_3() -> None:
             import time
             if real_eval_script:
                   print("\n[D19c] Running REAL task eval script (this may take a few minutes)...")
-                  tools_c = create_bound_tools(ws, eval_script=real_eval_script)
+                  holder = WorkspaceHolder()
+                  holder.workspace = ws
+                  holder.eval_script = real_eval_script
+                  tools_c = create_bound_tools(holder)
                   run_tests_c = next(t for t in tools_c if t.__name__ == "run_tests")
 
                   start_time = time.time()
@@ -488,7 +495,10 @@ def phase_2_and_3() -> None:
 
             print("\n--- [D20] Testing Patch Pollution Prevention ---")
             test_script = '#!/bin/bash\necho "Running D20 verification tests..."\n'
-            tools = create_bound_tools(ws, eval_script=test_script)
+            holder = WorkspaceHolder()
+            holder.workspace = ws
+            holder.eval_script = test_script
+            tools = create_bound_tools(holder)
 
             run_tests_tool = next(t for t in tools if t.__name__ == "run_tests")
             get_patch_tool = next(t for t in tools if t.__name__ == "get_patch")

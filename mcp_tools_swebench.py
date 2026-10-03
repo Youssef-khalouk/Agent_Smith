@@ -1,4 +1,12 @@
 from mcp.server.mcpserver import MCPServer
+import threading
+from contextlib import asynccontextmanager
+from starlette.applications import Starlette
+from starlette.routing import Route
+# Route connects a URL path to a function
+from starlette.responses import JSONResponse
+# uvicorn — the engine that actually serves a Starlette app
+import uvicorn
 import os
 import sys
 from tools_common.workspace import DockerWorkspace, LocalWorkspace
@@ -20,16 +28,48 @@ MAX_CHARACTERS = 3000
 MCP = MCPServer("MCP-SERVER")
 
 
-def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
-    """Bind the raw tool implementations to one workspace and register
-    them with the MCP server.
+class WorkspaceHolder:
+    def __init__(self):
+        # no eval_script nor workspace at birth
+        self.workspace = None
+        self.eval_script = None
 
-    The closures below capture `workspace` from this enclosing scope and
-    expose only the PDF-facing parameters.
 
-    Returns the list of bound tool functions (the server has already
-    registered them; the list exists for direct testing and inspection).
-    """
+class ServerState():
+    def __init__(self):
+        # moods: "unconfigured", "preparing", "ready", "failed"
+        self.state = "unconfigured"
+        # progress text — "pulling image", "extracting repo"
+        self.detail = ""
+        # the failure reason, if failed
+        self.error = None
+        self.lock = threading.Lock()
+
+    def set(self, state, detail="", error: str | None = None):
+        """
+        Update the server state, detail, and optional error message.
+        """
+        # only ONE thread can run this block at a time
+        with self.lock:
+            self.state = state
+            self.detail = detail
+            if state == "failed" or error is not None:
+                self.error = error
+
+    def snapshot(self):
+        with self.lock:
+            return {
+                "state": self.state,
+                "detail": self.detail,
+                "error": self.error
+            }
+
+
+holder = WorkspaceHolder()
+server_state = ServerState()
+
+
+def create_bound_tools(holder: WorkspaceHolder) -> list:
 
     @MCP.tool()
     def read_file(filepath: str, start_line: int = 1,
@@ -59,9 +99,12 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
         """
         # Translate the schema-friendly None into the implementation's
         # -1 sentinel meaning "read to end of file".
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
         if end_line is None:
             end_line = -1
-        return read_file_impl(workspace, filepath, start_line, end_line)
+        return read_file_impl(holder.workspace, filepath, start_line, end_line)
 
     @MCP.tool()
     def edit_file(filepath: str, old_str: str, new_str: str) -> str:
@@ -86,7 +129,10 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             surrounding context, or an error message explaining the
             failure and how to recover.
         """
-        return edit_file_impl(workspace, filepath, old_str, new_str)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return edit_file_impl(holder.workspace, filepath, old_str, new_str)
 
     @MCP.tool()
     def list_files(directory: str = ".", pattern: str = "*",
@@ -109,7 +155,10 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             The matching entries, one per line, possibly with a
             pagination hint — or an error message.
         """
-        return list_files_impl(workspace, directory, pattern, offset)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return list_files_impl(holder.workspace, directory, pattern, offset)
 
     @MCP.tool()
     def run_command(command: str, workdir: str = ".") -> str:
@@ -133,7 +182,10 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             The command's output with its exit code, or a timeout
             report including partial output.
         """
-        return run_command_impl(workspace, command, workdir)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return run_command_impl(holder.workspace, command, workdir)
 
     @MCP.tool()
     def get_patch() -> str:
@@ -149,7 +201,10 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             message if no changes are detected (edit files before
             submitting).
         """
-        return get_patch_impl(workspace)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return get_patch_impl(holder.workspace)
 
     @MCP.tool()
     def search_code(pattern: str, file_pattern: str = "*.py",
@@ -174,7 +229,11 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             Matching lines in the standard format with a total count,
             or a "no matches" / "invalid regex" error message.
         """
-        return search_code_impl(workspace, pattern, file_pattern, offset)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return search_code_impl(
+            holder.workspace, pattern, file_pattern, offset)
 
     @MCP.tool()
     def search_function_or_class_definition_in_code(
@@ -194,7 +253,11 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             The definition lines found, or a "no matches" message
             suggesting search_code for a broader search.
         """
-        return def_search_impl(workspace=workspace, name=name, offset=offset)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return def_search_impl(
+            workspace=holder.workspace, name=name, offset=offset)
 
     @MCP.tool()
     def find_references(
@@ -220,7 +283,11 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
             All usage lines across the repository (excluding the
             definition line), or an error message.
         """
-        return find_references_impl(workspace, name, filepath, line, offset)
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        return find_references_impl(
+            holder.workspace, name, filepath, line, offset)
 
     @MCP.tool()
     def run_tests() -> str:
@@ -237,9 +304,14 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
         Returns:
             The test run output, showing which tests pass or fail.
         """
-        
-        test_results = workspace.run_command_in_folder(
-            command=eval_script,
+        if holder.workspace is None:
+            return ("Error: server is not configured yet. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        if holder.eval_script is None:
+            return ("Error: no eval script configured. "
+                    "Send POST /setup and wait for /ready to report 'ready'.")
+        test_results = holder.workspace.run_command_in_folder(
+            command=holder.eval_script,
             folder_path=".",
             timeout=600
         )
@@ -267,20 +339,132 @@ def create_bound_tools(workspace: DockerWorkspace, eval_script: str) -> list:
         ]
 
 
+stop_event = threading.Event()
+
+
+def prepare_workspace(
+        holder, state: ServerState, image_name, mount_path, eval_script):
+    # announce the mood before starting work.
+    state.set("preparing", "pulling image")
+    try:
+        with DockerWorkspace(mount_path, image_name) as dws:
+            # attaches the workspace to your holder object so
+            # HTTP routes can use it.
+            holder.workspace = dws
+            holder.eval_script = eval_script
+            state.set("ready")
+            # his line freezes the background thread right there.
+            # stop_event is never set to green (stop_event.set()), the
+            # thread pauses forever inside the with block.
+            # now agent gets a chance to use container until green light.
+            stop_event.wait()
+    except Exception as e:
+        state.set("failed", error=str(e))
+
+
+async def setup_endpoint(request):
+    """
+    HTTP POST /setup handler to initialize workspace in background thread.
+
+    Workflow:
+    1. Parses incoming JSON payload containing setup parameters.
+    2. Validates required fields: 'image_name' and 'eval_script'.
+    3. Atomically checks that server state is 'unconfigured' (rejects with 409 if active).
+    4. Spawns a background thread (prepare_workspace) to pull Docker images and build container.
+    5. Returns 202 Accepted immediately to avoid HTTP connection timeouts during long tasks.
+    """
+    # read the package 
+    # becomes a Python dictionary assigned to data
+    data = await request.json()
+    required_keys = ["image_name", "eval_script"]
+    missing_fields = [k for k in required_keys if k not in data]
+    if missing_fields:
+        return JSONResponse(
+            {"error": f"missing fields: {', '.join(missing_fields)}"},
+            status_code=400,
+        )
+    if server_state.snapshot()["state"] != "unconfigured":
+        return JSONResponse(
+            {"error": "already configured or preparing"}, status_code=409)
+    mount_path = f"/tmp/testbed_{data.get('instance_id', 'default')}"
+    # daemon so the thread dies once the main process ends
+    # this is the thread that will be frozen forever in the with block
+    threading.Thread(target=prepare_workspace, args=(
+        holder, server_state, data["image_name"], mount_path,
+        data["eval_script"]), daemon=True).start()
+    # return this immediately to avoid timeout
+    # the client polls /ready
+    return JSONResponse({"state": "preparing"}, status_code=202)
+
+
+async def ready_endpoint(request):
+    """
+    HTTP GET /ready handler to poll server status.
+
+    Returns the current state snapshot dict
+    ('state', 'detail', and optional 'error')
+    with an HTTP 200 OK status regardless of internal state.
+    """
+    return JSONResponse(server_state.snapshot())
+
+@asynccontextmanager
+async def lifespan(app):
+    # The MCP session manager must stay running while the HTTP server is alive.
+    # Normally MCP.run() starts it for us, but in remote mode we create
+    # the Starlette app ourselves, so we have to manage it here.
+    async with MCP.session_manager.run():
+        # Keep the session manager alive for the entire lifetime of the server.
+        yield
+    # When I use MCP.run(), the MCP SDK manages its lifecycle for me. When I
+    # create my own Starlette app and mount MCP.streamable_http_app(), I must
+    # explicitly keep the MCP session manager alive using Starlette's lifespan
+
+
 def main() -> None:
+    if "--http" in sys.argv:
+        create_bound_tools(holder)
+        # list of declarations that map URL paths to Python functions
+        # and assign their HTTP methods (POST and GET).
+        routes = [
+            Route("/setup", setup_endpoint, methods=["POST"]),
+            Route("/ready", ready_endpoint, methods=["GET"]),
+        ]
+        # initialize a Starlette application (which FastAPI is built on top of) and
+        # hand it your routes list (/setup and /ready).
+        # Now app has POST /setup and GET /ready, but it is still
+        # missing the protagonist of the show: MCP
+        app = Starlette(routes=routes, lifespan=lifespan)
+        # attach a new path to the app that will handle
+        # MCP protocol tools and capabilities
+        # streamable_http_app() extracts the underlying
+        # sub-application inside your MCP instance.
+        # Take any incoming hhtp request whose URL path starts with /mcp and
+        # translates it into MCP protocol messages for your tools.
+        # !! Now we have all three endpoints (/setup, /ready, and /mcp)
+        # unified inside a single web application.
+        app.mount("/", MCP.streamable_http_app())
+        # Starts the Uvicorn http web server listening on port 8000
+        # turns your custom web server and your MCP server into a
+        # single, unified service running under one PID on port 8000
+        uvicorn.run(app, host="127.0.0.1", port=8000)
+        return
+
     image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.sympy_1776_sympy-14711")
     mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed")
     eval_script = os.environ.get(
         "SWEBENCH_EVAL_SCRIPT", """#!/bin/bash
         source /opt/miniconda3/bin/activate testbed
         ./bin/test sympy/core/tests/test_symbol.py""")
+
     with DockerWorkspace(mount_path, image_name=image_name) as ws:
         # 3. Bind tools to workspace and server instance
-        create_bound_tools(ws, eval_script)
-        if "--http" in sys.argv:
-            MCP.run(transport="streamable-http")
-        else:
-            MCP.run()   # stdio is the default
+        holder.eval_script = eval_script
+        holder.workspace = ws
+        create_bound_tools(holder)
+        # if "--http" in sys.argv:
+        #     MCP.run(transport="streamable-http")
+        # else:
+        MCP.run()   # stdio is the default
 
     # --------------------STDIO-----------------
     # use command to start server using stdio, opens the Web UI automatically:
@@ -289,6 +473,25 @@ def main() -> None:
     # TERMINAL COMMANDS IN ORDER:
     # terminal 1: uv run python mcp_tools_swebench.py --http
     # terminal 2: npx @modelcontextprotocol/inspector http://localhost:8000/mcp
+    # ------------------ MORE HTTP-----------------
+    # Terminal 1:  uv run python mcp_tools_swebench.py --remote
+    # Terminal 2 (in order):
+    # curl http://127.0.0.1:8000/ready
+    #  → EXPECT {"state": "unconfigured"}
+    # curl -X POST http://127.0.0.1:8000/setup \
+    #    -H "Content-Type: application/json" \
+    #    -d '{"image_name":"swebench/sweb.eval.x86_64.sympy_1776_sympy-14711",
+    #         "eval_script":"echo hello",
+    #         "instance_id":"ep-test"}'
+    #  → EXPECT 202 {"state": "preparing"}
+    # (repeat the POST immediately)
+    #  → EXPECT 409
+    # curl http://127.0.0.1:8000/ready   (poll every 2s)
+    #  → "preparing" → ... → {"state": "ready"}
+    #
+    # npx @modelcontextprotocol/inspector http://127.0.0.1:8000/mcp
+    #  → connect → call read_file("README.rst", 1, 5)
+    #  → EXPECT cat-n sympy output
 
 
 if __name__ == "__main__":
