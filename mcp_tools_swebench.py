@@ -1,5 +1,6 @@
 from mcp.server.mcpserver import MCPServer
 import threading
+import signal
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from starlette.routing import Route
@@ -446,6 +447,11 @@ def main() -> None:
         # Starts the Uvicorn http web server listening on port 8000
         # turns your custom web server and your MCP server into a
         # single, unified service running under one PID on port 8000
+
+        def handle_shutdown(signum, frame):
+            stop_event.set()          # wake the parked thread
+        signal.signal(signal.SIGTERM, handle_shutdown)
+        signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
         uvicorn.run(app, host="127.0.0.1", port=8000)
         return
 
