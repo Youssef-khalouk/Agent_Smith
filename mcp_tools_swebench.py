@@ -474,7 +474,7 @@ def main() -> None:
     # terminal 1: uv run python mcp_tools_swebench.py --http
     # terminal 2: npx @modelcontextprotocol/inspector http://localhost:8000/mcp
     # ------------------ MORE HTTP-----------------
-    # Terminal 1:  uv run python mcp_tools_swebench.py --remote
+    # Terminal 1:  uv run python mcp_tools_swebench.py --http
     # Terminal 2 (in order):
     # curl http://127.0.0.1:8000/ready
     #  → EXPECT {"state": "unconfigured"}
