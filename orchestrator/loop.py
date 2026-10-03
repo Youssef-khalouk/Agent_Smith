@@ -94,6 +94,9 @@ class Agent:
             error = self._limit_error(steps, start)
             if error:
                 break
+            if not self.sandbox.is_ok:
+                error = self.sandbox.get_error()
+                break
             try:
                 result = self.provider.generate(messages=self.messages, stop_sequences=["<end_code>"])
             except Exception as e:

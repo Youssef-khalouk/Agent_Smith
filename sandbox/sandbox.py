@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
 import ast
 import subprocess
-from typing import List, Dict
+from typing import List, Dict, Any
 import resource
-from models import SandboxConfig
+from models import SandboxConfig, DockerImage
 from sandbox.mcp_client import Mcps
-from mcp_types._types import ListToolsResult # delme
+from mcp_types._types import ListToolsResult
 import fire
 import asyncio
 import json
@@ -17,6 +17,8 @@ SBX: SandboxConfig = SandboxConfig()
 
 class SandBox():
     def __init__(self):
+        self.error: str | None = None
+        self.is_ok: bool = True
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
         self.mcp_client: Mcps = Mcps()
@@ -27,10 +29,31 @@ class SandBox():
             "For SWE-bench, pass get_patch().\n"
         ]
         self.tool_names: List[str] = []
+        self.functions_keys_list: Dict[str, List[str]] = {}
         asyncio.run(self.parse_mcp_tools())
+
     
+    def get_error(self) -> str:
+        return (self.error)
+
+    def is_ok(self) -> bool:
+        return (self.is_ok)
+
     def _extract_data(self, tool: dict) -> str:
-        def __extract_type(data: str) -> str:
+        def __extract_types(key: str, dictionary: Dict[Any, Any]):
+            arg_type: str = ""
+            if "$ref" in dictionary[key]:
+                meta_data += f"{dictionary[key]['$ref'][8:]}"
+            elif "type" in dictionary[key]:
+                arg_type = __convert_type_hint(dictionary[key]["type"])
+            elif "anyOf" in dictionary[key]:
+                for i, _type in enumerate(dictionary[key]["anyOf"]):
+                    if i != 0:
+                        arg_type += " | "
+                    arg_type += __convert_type_hint(_type["type"])
+            return (arg_type)
+
+        def __convert_type_hint(data: str) -> str:
             type_hints: Dict[str, str] = {
                 "integer": "int",
                 "string": "str",
@@ -42,38 +65,39 @@ class SandBox():
             if not arg_type:
                 arg_type = data
             return arg_type
-
+        arg_type: str
+        return_type: str
+        keys: List[str] = []
         meta_data = f"- def {tool.name}("
-        input_shema = tool.input_schema["properties"]
-        for index, arg in enumerate(input_shema):
+        input_schema = tool.input_schema["properties"]
+        output_schema = tool.output_schema["properties"]
+        for index, arg in enumerate(input_schema):
+            keys.append(arg)
             arg_type = ""
             if index != 0:
                 meta_data += ", "
             meta_data += f"{arg}: "
-            if "$ref" in input_shema[arg]:
-                meta_data += f"{input_shema[arg]['$ref'][8:]}"
-            elif "type" in input_shema[arg]:
-                arg_type = __extract_type(input_shema[arg]["type"])
-            elif "anyOf" in input_shema[arg]:
-                for i, _type in enumerate(input_shema[arg]["anyOf"]):
-                    if i != 0:
-                        arg_type += " | "
-                    arg_type += __extract_type(_type["type"])
+            arg_type = __extract_types(arg, input_schema)
             meta_data += f"{arg_type}"
-
-        meta_data += f"):  "
+        self.functions_keys_list[tool.name] = keys
+        meta_data += f") -> "
+        return_type = __extract_types("result", output_schema)
+        meta_data += f"{return_type}: "
         # meta_data += f"Description: {tool.description}"
         return meta_data
     
-    def pull_image(image: str) -> None:
-        pass
+    def pull_image(self, image: DockerImage) -> None:
+        j = image.model_dump_json()
 
-    def shotdown_image(image: str = "") -> None:
+    def shotdown_image(self, image: DockerImage | None = None) -> None:
         pass
 
     async def parse_mcp_tools(self):
-        tools: ListToolsResult = await self.mcp_client.get_tools()
-
+        tools: ListToolsResult | str = await self.mcp_client.get_tools()
+        if isinstance(tools, str):
+            self.is_ok = False
+            self.error = tools
+            return
         self.tools_meta_data_swe = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
@@ -100,7 +124,8 @@ class SandBox():
              "sandbox.executor", "exec",
              f"--code={code}",
              f"--tool_names={self.tool_names}",
-             f"--config_file={config_file}"],
+             f"--config_file={config_file}",
+             f"--functions_keys={self.functions_keys_list}"],
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -118,8 +143,12 @@ class SandBox():
             self._final_answer(stdout[26:])
         
         if stdout != "":
-            output += f"Output: {stdout}.\n"
+            output += f"Stdout: {stdout}.\n"
         
+        if stderr.startswith("MCP server connection failed:"):
+            self.error = stderr
+            self.is_ok = False
+
         if stderr != "":
             output += f"Stderr: {stderr}.\n"
 
@@ -131,14 +160,5 @@ class SandBox():
         configurate_sandbox(config_file, SBX)
         result = self.create_environment(code, config_file)
         return result
-    
 
-def main() -> None:
-    # sbx: SandBox = SandBox()
-    fire.Fire(
-        {
-            "--mcp-stdio": "",
-            "--mcp-server": ""
-        }
-    )
 
