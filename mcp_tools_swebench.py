@@ -34,6 +34,7 @@ class WorkspaceHolder:
         # no eval_script nor workspace at birth
         self.workspace = None
         self.eval_script = None
+        self.task_context = None
 
 
 class ServerState():
@@ -340,11 +341,67 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         ]
 
 
+@MCP.resource("task://context")
+def task_context_resource() -> str:
+    """The current task: problem statement,
+    instance id, hints."""
+    if holder.task_context is None:
+        return ("no task configured yet")
+    problem = holder.task_context["problem_statement"]
+    instance_id = holder.task_context["instance_id"]
+    hints = holder.task_context["hints"]
+    return "\n".join([problem, instance_id, hints])
+
+@MCP.prompt()
+def fix_issue() -> str:
+    """Prompt guiding the autonomous agent through repository bug fixes."""
+    return (
+        "You are an autonomous software engineer fixing a real bug in a real "
+        "repository inside a container. Your goal: produce a correct, "
+        "minimal patch and submit it via final_answer().\n\n"
+        "First, understand the task. Read the resource task://context for the "
+        "issue description, the instance id, and any hints. The problem "
+        "statement is a real GitHub issue — read it completely before "
+        "touching anything.\n\n"
+        "Then, explore before you edit. Use "
+        "search_function_or_class_definition_in_code to find where the "
+        "relevant code is defined, then search_code and find_references to "
+        "understand how it is used. Read files with read_file before editing "
+        "them — the line numbers in its output are the ground truth. "
+        "Never guess at file contents.\n\n"
+        "Edit surgically. edit_file replaces an exact string: copy old_str "
+        "EXACTLY from the file, including indentation — if it matches in "
+        "multiple places the edit is refused and the line numbers are "
+        "reported; add surrounding lines to make it unique. Make the smallest "
+        "change that fixes the issue. Do not reformat, rename, or 'improve' "
+        "unrelated code.\n\n"
+        "Verify with the tests. run_tests executes the official test suite. "
+        "It may take seconds or minutes — be patient, and do not call it "
+        "repeatedly: make focused edits between runs. A non-zero exit code is "
+        "normal output, not a tool failure — read it, it tells you which "
+        "tests fail and why. If tests fail, use read_file and search_code "
+        "on the failing test file to understand what is expected. The tests "
+        "that must newly pass are the FAIL_TO_PASS set from the task "
+        "context.\n\n"
+        "Iterate efficiently. Outputs may be truncated with a hint showing "
+        "how to continue (offset or start_line parameters). Error messages "
+        "tell you what to do next — follow them. If you are stuck after "
+        "several attempts, re-read the issue: the answer is often in a "
+        "detail you skimmed.\n\n"
+        "Submit the deliverable. When the tests pass, call get_patch() to "
+        "retrieve the unified diff of all your changes — this patch IS the "
+        "deliverable. Check it: it should contain exactly your intended edits "
+        "and nothing else. Then call final_answer() with the patch as the "
+        "argument. Never submit an empty patch."
+    )
+
+
 stop_event = threading.Event()
 
 
 def prepare_workspace(
-        holder, state: ServerState, image_name, mount_path, eval_script):
+        holder, state: ServerState, image_name, mount_path,
+        eval_script, problem, instance_id, hints):
     # announce the mood before starting work.
     state.set("preparing", "pulling image")
     try:
@@ -353,6 +410,11 @@ def prepare_workspace(
             # HTTP routes can use it.
             holder.workspace = dws
             holder.eval_script = eval_script
+            holder.task_context = {
+                "problem_statement": problem,
+                "instance_id": instance_id,
+                "hints": hints
+            }
             state.set("ready")
             # his line freezes the background thread right there.
             # stop_event is never set to green (stop_event.set()), the
@@ -370,14 +432,19 @@ async def setup_endpoint(request):
     Workflow:
     1. Parses incoming JSON payload containing setup parameters.
     2. Validates required fields: 'image_name' and 'eval_script'.
-    3. Atomically checks that server state is 'unconfigured' (rejects with 409 if active).
-    4. Spawns a background thread (prepare_workspace) to pull Docker images and build container.
-    5. Returns 202 Accepted immediately to avoid HTTP connection timeouts during long tasks.
+    3. Atomically checks that server state is 'unconfigured'
+    (rejects with 409 if active).
+    4. Spawns a background thread (prepare_workspace) to pull
+    Docker images and build container.
+    5. Returns 202 Accepted immediately to avoid HTTP connection
+    timeouts during long tasks.
     """
     # read the package 
     # becomes a Python dictionary assigned to data
     data = await request.json()
-    required_keys = ["image_name", "eval_script"]
+    required_keys = [
+        "image_name", "eval_script", "problem_statement", "instance_id",
+        "hints"]
     missing_fields = [k for k in required_keys if k not in data]
     if missing_fields:
         return JSONResponse(
@@ -392,7 +459,8 @@ async def setup_endpoint(request):
     # this is the thread that will be frozen forever in the with block
     threading.Thread(target=prepare_workspace, args=(
         holder, server_state, data["image_name"], mount_path,
-        data["eval_script"]), daemon=True).start()
+        data["eval_script"], data["problem_statement"],
+        data["instance_id"], data["hints"]), daemon=True).start()
     # return this immediately to avoid timeout
     # the client polls /ready
     return JSONResponse({"state": "preparing"}, status_code=202)
@@ -407,6 +475,7 @@ async def ready_endpoint(request):
     with an HTTP 200 OK status regardless of internal state.
     """
     return JSONResponse(server_state.snapshot())
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -455,6 +524,9 @@ def main() -> None:
         uvicorn.run(app, host="127.0.0.1", port=8000)
         return
 
+    problem = os.environ.get("SWEBENCH_PROBLEM_STATEMENT", "bug in repo, keeps crashing")
+    instance_id = os.environ.get("SWEBENCH_INSTANCE_ID", "task1234")
+    hint = os.environ.get("SWEBENCH_HINTS", "focus on 'search' named functions")
     image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.sympy_1776_sympy-14711")
     mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed")
     eval_script = os.environ.get(
@@ -466,10 +538,12 @@ def main() -> None:
         # 3. Bind tools to workspace and server instance
         holder.eval_script = eval_script
         holder.workspace = ws
+        holder.task_context = {
+            "problem_statement": problem,
+            "instance_id": instance_id,
+            "hints": hint
+        }
         create_bound_tools(holder)
-        # if "--http" in sys.argv:
-        #     MCP.run(transport="streamable-http")
-        # else:
         MCP.run()   # stdio is the default
 
     # --------------------STDIO-----------------
@@ -488,7 +562,9 @@ def main() -> None:
     #    -H "Content-Type: application/json" \
     #    -d '{"image_name":"swebench/sweb.eval.x86_64.sympy_1776_sympy-14711",
     #         "eval_script":"echo hello",
-    #         "instance_id":"ep-test"}'
+    #         "instance_id":"task_1234",
+    #         "problem_statement": "bug in repo, keeps crashing",
+    #         "hints": "focus on search named functions"}'
     #  → EXPECT 202 {"state": "preparing"}
     # (repeat the POST immediately)
     #  → EXPECT 409
