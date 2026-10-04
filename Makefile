@@ -76,9 +76,10 @@ clean:
 	find . -type f -name "*.pyc" -delete
 
 fclean: clean
-	rm -rf log.txt
 	rm -rf output
 	rm -rf tasks
+	rm -rf log.txt
+	rm messages.txt
 
 #######################################################
 

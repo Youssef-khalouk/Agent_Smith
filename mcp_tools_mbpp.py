@@ -9,14 +9,23 @@ mcp = MCPServer()
 
 @mcp.tool()
 def run_tests(code: str) -> str:
-    """Run the code as python code and return the captured output."""
-    buf = io.StringIO()
+    """Run the code as Python code and return stdout/stderr."""
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
     try:
-        with contextlib.redirect_stdout(buf):
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             exec(code, {})
     except Exception as e:
-        return f"Error: {type(e).__name__}: {e}"
-    return buf.getvalue() or "" # or no output
+        stderr.write(f"{type(e).__name__}: {e}")
+
+    output = ""
+    if stdout.getvalue().strip():
+        output += f"STDOUT: {stdout.getvalue()}"
+    if stderr.getvalue().strip():
+        output += f"\nSTDERR: {stderr.getvalue()}"
+    return output
 
 @mcp.resource("task://context")
 def task_resource() -> str:
