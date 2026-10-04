@@ -96,6 +96,9 @@ test_orchestrator:
 start_mcp_server_http:
 	uv run python3 mcp_tools_swebench.py --http >> log.txt 2>&1 &
 
+start_mbpp_server_http:
+	uv run python3 mcp_tools_mbpp.py --http >> log.txt 2>&1 &
+
 start_mcp_server_stdio:
 	uv run python3 mcp_tools_swebench.py >> log.txt 2>&1 &
 
