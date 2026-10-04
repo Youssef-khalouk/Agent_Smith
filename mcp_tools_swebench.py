@@ -524,15 +524,12 @@ def main() -> None:
         uvicorn.run(app, host="127.0.0.1", port=8000)
         return
 
-    problem = os.environ.get("SWEBENCH_PROBLEM_STATEMENT", "bug in repo, keeps crashing")
-    instance_id = os.environ.get("SWEBENCH_INSTANCE_ID", "task1234")
-    hint = os.environ.get("SWEBENCH_HINTS", "focus on 'search' named functions")
-    image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.sympy_1776_sympy-14711")
-    mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed")
-    eval_script = os.environ.get(
-        "SWEBENCH_EVAL_SCRIPT", """#!/bin/bash
-        source /opt/miniconda3/bin/activate testbed
-        ./bin/test sympy/core/tests/test_symbol.py""")
+    problem = os.environ.get("SWEBENCH_PROBLEM_STATEMENT", "xr.where with scalar as second argument fails with keep_attrs=True\n### What happened?\n\n``` python\r\nimport xarray as xr\r\n\r\nxr.where(xr.DataArray([1, 2, 3]) > 0, 1, 0)\r\n```\r\n\r\nfails with\r\n\r\n```\r\n   1809 if keep_attrs is True:\r\n   1810     # keep the attributes of x, the second parameter, by default to\r\n   1811     # be consistent with the `where` method of `DataArray` and `Dataset`\r\n-> 1812     keep_attrs = lambda attrs, context: attrs[1]\r\n   1814 # alignment for three arguments is complicated, so don't support it yet\r\n   1815 return apply_ufunc(\r\n   1816     duck_array_ops.where,\r\n   1817     cond,\r\n   (...)\r\n   1823     keep_attrs=keep_attrs,\r\n   1824 )\r\n\r\nIndexError: list index out of range\r\n```\r\n\r\nThe workaround is to pass `keep_attrs=False`\n\n### What did you expect to happen?\n\n_No response_\n\n### Minimal Complete Verifiable Example\n\n_No response_\n\n### Relevant log output\n\n_No response_\n\n### Anything else we need to know?\n\n_No response_\n\n### Environment\n\nxarray 2022.3.0\n")
+    instance_id = os.environ.get("SWEBENCH_INSTANCE_ID", "pydata__xarray-6461")
+    hint = os.environ.get("SWEBENCH_HINTS", "")
+    image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest")
+    mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed_pydata__xarray-6461")
+    eval_script = os.environ.get("SWEBENCH_EVAL_SCRIPT", "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit -c core.fileMode=false diff 851dadeb0338403e5021c3fbe80cbc9127ee672d\nsource /opt/miniconda3/bin/activate\nconda activate testbed\npython -m pip install -e .\ngit checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/xarray/tests/test_computation.py b/xarray/tests/test_computation.py\n--- a/xarray/tests/test_computation.py\n+++ b/xarray/tests/test_computation.py\n@@ -1928,6 +1928,10 @@ def test_where_attrs() -> None:\n     expected = xr.DataArray([1, 0], dims=\"x\", attrs={\"attr\": \"x\"})\n     assert_identical(expected, actual)\n \n+    # ensure keep_attrs can handle scalar values\n+    actual = xr.where(cond, 1, 0, keep_attrs=True)\n+    assert actual.attrs == {}\n+\n \n @pytest.mark.parametrize(\"use_dask\", [True, False])\n @pytest.mark.parametrize(\"use_datetime\", [True, False])\n\nEOF_114329324912\n: '>>>>> Start Test Output'\npytest -rA xarray/tests/test_computation.py\n: '>>>>> End Test Output'\ngit checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py\n")
 
     with DockerWorkspace(mount_path, image_name=image_name) as ws:
         # 3. Bind tools to workspace and server instance
@@ -560,9 +557,9 @@ def main() -> None:
     #  → EXPECT {"state": "unconfigured"}
     # curl -X POST http://127.0.0.1:8000/setup \
     #    -H "Content-Type: application/json" \
-    #    -d '{"image_name":"swebench/sweb.eval.x86_64.sympy_1776_sympy-14711",
+    #    -d '{"image_name":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
     #         "eval_script":"echo hello",
-    #         "instance_id":"task_1234",
+    #         "instance_id":"pydata__xarray-6461",
     #         "problem_statement": "bug in repo, keeps crashing",
     #         "hints": "focus on search named functions"}'
     #  → EXPECT 202 {"state": "preparing"}

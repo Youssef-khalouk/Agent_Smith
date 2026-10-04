@@ -228,7 +228,8 @@ class ContainerManager:
                     ["docker", "cp", f"{blueprint.id}:/testbed/.",
                      stage_dir],
                     # check makes sure python crashes if upper command fails
-                    check=True
+                    check=True,
+                    capture_output=True
                 )
             finally:
                 blueprint.remove(force=True)
@@ -238,8 +239,9 @@ class ContainerManager:
             # Cleanup broken download in stage_dir
             if stage_dir.exists():
                 shutil.rmtree(stage_dir)
+            stderr_text = err.stderr.decode() if err.stderr else str(err)
             raise RuntimeError(
-                f"Docker extraction failed: {err.stderr.strip()}") from err
+                f"Docker extraction failed: {stderr_text}") from err
  
 
 # if __name__ == "__main__":
