@@ -11,7 +11,19 @@ class Mcps():
                 tools = await client.list_tools()
         except Exception as e:
             return (f"MCP server connection failed: {e}")
-        return tools    
+        return tools
+    
+    async def pull_image(self, docker_image: any) -> None:
+        try:
+            response = requests.post(
+                "http://localhost:8000/setup",
+                headers={"Authorization": "Bearer "},
+                json=docker_image,
+                timeout=60,
+            )
+        except Exception as e:
+            return f"server connection failed: {e}"
+        return response
 
     async def stdio_connection(self, tool_call: Tuple[str, Any]) -> Any:
         try:

@@ -87,18 +87,8 @@ class SandBox():
         return meta_data
     
     def pull_image(self, image: DockerImage | None = None) -> None:
-        result: Dict[str, Any] = {
-            "docker_image": "",
-            "eval_script": "",
-            "instance_id": "",
-            "problem_statement": ""
-        }
-        with open("./tasks/swebench_task.json") as fd:
-            content = json.load(fd)
-        result["docker_image"] = content["docker_image"]
-        result["eval_script"] = content["eval_script"]
-        result["instance_id"] = content["instance_id"]
-        result["problem_statement"] = content["problem_statement"]
+        image = image.json()
+        
         return (result)
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
