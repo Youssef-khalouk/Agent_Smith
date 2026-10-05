@@ -104,7 +104,7 @@ start_mcp_server_stdio:
 	uv run python3 mcp_tools_swebench.py --stdio >> log.txt 2>&1 &
 
 stop_mcp_server:
-	pkill -f "mcp_tools_swebench"
+	pkill -9 -f "mcp_tools_swebench"
 
 test_client:
 	uv run python3 -m tests.test_tools

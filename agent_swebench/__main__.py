@@ -44,7 +44,7 @@ def agent_swe_bench(task_file: str, output: str, model_name: str, provider_url: 
                         max_output_tokens=10000,
                         timeout_seconds=900)
 
-        agent.set_docker_image(DockerImage(swe_bench_task.json()))
+        agent.set_docker_image(DockerImage.model_validate(swe_bench_task.model_dump()))
 
         solution: SolutionOutput = agent.run(swe_bench_task)
 
