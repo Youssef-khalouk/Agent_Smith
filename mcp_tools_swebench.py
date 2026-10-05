@@ -1,5 +1,6 @@
 from mcp.server.mcpserver import MCPServer
 import threading
+import asyncio
 import signal
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
@@ -397,6 +398,7 @@ def fix_issue() -> str:
 
 
 stop_event = threading.Event()
+server_shutdown_event = asyncio.Event()
 
 
 def prepare_workspace(
@@ -477,6 +479,15 @@ async def ready_endpoint(request):
     return JSONResponse(server_state.snapshot())
 
 
+async def shutdown_endpoint(request):
+    stop_event.set()
+    # Release the lifespan shutdown waiter to exit the with block
+    server_shutdown_event.set()
+    # Send SIGTERM to self to kick off Uvicorn's graceful exit sequence
+    os.kill(os.getpid(), signal.SIGTERM)
+    return JSONResponse({"status": "shutting down"})
+
+
 @asynccontextmanager
 async def lifespan(app):
     # The MCP session manager must stay running while the HTTP server is alive.
@@ -485,6 +496,7 @@ async def lifespan(app):
     async with MCP.session_manager.run():
         # Keep the session manager alive for the entire lifetime of the server.
         yield
+        await server_shutdown_event.wait()
     # When I use MCP.run(), the MCP SDK manages its lifecycle for me. When I
     # create my own Starlette app and mount MCP.streamable_http_app(), I must
     # explicitly keep the MCP session manager alive using Starlette's lifespan
@@ -498,6 +510,7 @@ def main() -> None:
         routes = [
             Route("/setup", setup_endpoint, methods=["POST"]),
             Route("/ready", ready_endpoint, methods=["GET"]),
+            Route("/shutdown", shutdown_endpoint, methods=["POST"])
         ]
         # initialize a Starlette application (which FastAPI is built on top of) and
         # hand it your routes list (/setup and /ready).
@@ -574,6 +587,7 @@ def main() -> None:
     # npx @modelcontextprotocol/inspector http://127.0.0.1:8000/mcp
     #  → connect → call read_file("README.rst", 1, 5)
     #  → EXPECT cat-n sympy output
+    # curl -X POST http://127.0.0.1:8000/shutdown
 
 
 if __name__ == "__main__":
