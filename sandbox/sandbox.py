@@ -86,8 +86,20 @@ class SandBox():
         # meta_data += f"Description: {tool.description}"
         return meta_data
     
-    def pull_image(self, image: DockerImage) -> None:
-        j = image.model_dump_json()
+    def pull_image(self, image: DockerImage | None = None) -> None:
+        result: Dict[str, Any] = {
+            "docker_image": "",
+            "eval_script": "",
+            "instance_id": "",
+            "problem_statement": ""
+        }
+        with open("./tasks/swebench_task.json") as fd:
+            content = json.load(fd)
+        result["docker_image"] = content["docker_image"]
+        result["eval_script"] = content["eval_script"]
+        result["instance_id"] = content["instance_id"]
+        result["problem_statement"] = content["problem_statement"]
+        return (result)
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
         pass
@@ -97,7 +109,8 @@ class SandBox():
         if isinstance(tools, str):
             self.is_ok = False
             self.error = tools
-            return
+            print (tools)
+            exit(1)
         self.tools_meta_data_swe = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "

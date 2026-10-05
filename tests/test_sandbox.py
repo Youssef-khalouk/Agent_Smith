@@ -11,12 +11,15 @@ print(sorted([100, 5, 10, 20]))
 """
 
 async def main():
-    # await sbx.initialize()
-    result = sbx.exec_code(code=code, config_file="./sandbox_template.json")
-    print(result)
+    print(sbx.pull_image())
     exit()
-    # for name in sbx.tool_names:
-        # print(name)
+    # await sbx.initialize()
+    # result = sbx.exec_code(code=code, config_file="./sandbox_template.json")
+    # print(result)
+    # exit()
+    # print(sbx)
+    for name in sbx.tool_names:
+        print(name)
     # print(result)
     mcp = Mcps()
     tools = await mcp.get_tools()
