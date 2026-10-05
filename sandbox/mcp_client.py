@@ -13,7 +13,7 @@ class Mcps():
             return (f"MCP server connection failed: {e}")
         return tools
     
-    async def pull_image(self, docker_image: any) -> None:
+    def pull_image(self, docker_image: any) -> None:
         try:
             response = requests.post(
                 "http://localhost:8000/setup",

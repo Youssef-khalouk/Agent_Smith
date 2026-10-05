@@ -125,6 +125,8 @@ class LLMResponse(BaseModel):
 class DockerImage(BaseModel):
     """input of docker image info."""
     instance_id: str = Field(..., description="SWE-bench instance identifier (e.g., 'sympy__sympy-23534')")
+    problem_statement: str = Field(..., description="The GitHub issue description, what needs to be fixed")
     docker_image: str = Field(..., description="Full Docker image name to pull (e.g., 'swebench/sweb.eval.x86_64.sympy_1776_sympy-23534:latest')")
     eval_script: str = Field(..., description="Bash script to run inside the container to evaluate the patch")
+    hints_text: str = Field(default="", description="Optional hints about the issue (may be empty)")
     repo: str = Field(default="", description="Repository name (e.g., 'sympy/sympy')")
