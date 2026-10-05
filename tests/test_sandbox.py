@@ -3,7 +3,7 @@ from sandbox.sandbox import SandBox
 from sandbox.mcp_client import Mcps
 import traceback
 
-sbx = SandBox()
+# sbx = SandBox()
 
 code = """
 import heapq
@@ -11,24 +11,36 @@ print(sorted([100, 5, 10, 20]))
 """
 
 async def main():
-    print(sbx.pull_image())
-    exit()
+    # print(sbx.pull_image())
+    # exit()
     # await sbx.initialize()
     # result = sbx.exec_code(code=code, config_file="./sandbox_template.json")
     # print(result)
     # exit()
     # print(sbx)
-    for name in sbx.tool_names:
-        print(name)
+    # for name in sbx.tool_names:
+    #     print(name)
     # print(result)
+    # list_files(directory: str = ".", pattern: str = "*",
+    #                offset: int = 0)
     mcp = Mcps()
+    res = await mcp.stdio_connection(
+        ("list_files", {"directory": ".",
+                        "pattern": "*", "offset": 0})
+    )
+    print(res)
+    exit()
     tools = await mcp.get_tools()
+    res = mcp.http_connection(("list_files", {"directory": ".",
+                        "pattern": "*", "offset": 0}))
+    print(res)
+    exit()
     # for tpl in tools.tools[0]:
     #     print(tpl)
     # exit()
-    for data in sbx.tools_meta_data_swe:
-        print(data)
-    exit()
+    # for data in sbx.tools_meta_data_swe:
+    #     print(data)
+    # exit()
     result = await mcp.stdio_connection(("edit_file", {
         "filepath": "test.txt",
         "old_str": "reda",

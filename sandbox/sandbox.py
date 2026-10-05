@@ -22,8 +22,7 @@ class SandBox():
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
         self.mcp_client: Mcps = Mcps()
-        self.tools_meta_data_swe: List[str] = []
-        self.tools_meta_data_mbpp: List[str] = [
+        self.tools_meta_data: List[str] = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
@@ -89,7 +88,6 @@ class SandBox():
     def pull_image(self, image: DockerImage | None = None) -> None:
         image = image.json()
         
-        
         return (result)
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
@@ -110,12 +108,9 @@ class SandBox():
         for tool in tools.tools:
             self.tool_names.append(tool.name)
             self.tools_meta_data_swe.append(self._extract_data(tool))
-
-    def get_mbpp_tools(self) -> List[str]:
-        return (self.tools_meta_data_mbpp)
     
-    def get_swe_tools(self) -> List[str]:
-        return(self.tools_meta_data_swe)
+    def get_tools(self) -> List[str]:
+        return(self.tools_meta_data)
 
     def _final_answer(self, value: str) -> None:
         self.final_answer_called = True

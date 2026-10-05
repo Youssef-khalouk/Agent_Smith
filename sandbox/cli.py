@@ -1,6 +1,7 @@
 import sys
 from .sandbox import SandBox
 from .mcp_client import Mcps
+import subprocess
 
 
 def interactive(sandbox: SandBox,
@@ -18,17 +19,33 @@ def interactive(sandbox: SandBox,
 
 def main() -> None:
     args: int = len(sys.argv)
+    sbx = SandBox()
     if args == 1:
-        sbx = SandBox()
         print("Interactive sandbox launched successfully")
         interactive(sbx)
     if args == 2:
-        sbx = SandBox()
-        print("Interactive sandbox with custom "
-              "configuration launched successfully.")
+        print("Interactive sandbox launched successfully")
         interactive(sbx, sys.argv[1])
     if sys.argv[1] == "--mcp-stdio":
-        pass
+        command_line: List[str] = sys.argv[2].split()
+        print("Interactive sandbox launched successfully")
+        sub_proc = subprocess.run(
+            [command_line[0], command_line[1]],
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        interactive(sbx, sys.argv[3])
+    if sys.argv[1] == "--mcp-server":
+        print("Interactive sandbox launched successfully")
+        url: str = sys.argv[2]
+        sub_proc = subprocess.run(
+            ["python3", "mcp_tools_mbbp.py", '--http'],
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        interactive(sbx)
 
 if __name__ == "__main__":
     main()
