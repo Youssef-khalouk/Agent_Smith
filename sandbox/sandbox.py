@@ -117,7 +117,7 @@ class SandBox():
         ]
         for tool in tools.tools:
             self.tool_names.append(tool.name)
-            self.tools_meta_data_swe.append(self._extract_data(tool))
+            self.tools_meta_data.append(self._extract_data(tool))
     
     def get_tools(self) -> List[str]:
         return(self.tools_meta_data)
