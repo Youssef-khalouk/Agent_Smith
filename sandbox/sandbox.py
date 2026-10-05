@@ -83,7 +83,7 @@ class SandBox():
         meta_data += f") -> "
         return_type = __extract_types("result", output_schema)
         meta_data += f"{return_type}: "
-        # meta_data += f"Description: {tool.description}"
+        meta_data += f"Description: {tool.description}"
         return meta_data
     
     def pull_image(self, image: DockerImage | None = None) -> None:
@@ -146,14 +146,14 @@ class SandBox():
             self._final_answer(stdout[26:])
         
         if stdout != "":
-            output += f"Stdout: {stdout}.\n"
+            output += f"Stdout: {stdout}"
         
         if stderr.startswith("MCP server connection failed:"):
             self.error = stderr
             self.is_ok = False
 
         if stderr != "":
-            output += f"Stderr: {stderr}.\n"
+            output += f"Stderr: {stderr}"
 
         return output
 

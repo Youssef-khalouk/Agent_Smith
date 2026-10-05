@@ -1,5 +1,7 @@
 from mcp.server.mcpserver import MCPServer
 import threading
+import asyncio
+import signal
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from starlette.routing import Route
@@ -33,6 +35,7 @@ class WorkspaceHolder:
         # no eval_script nor workspace at birth
         self.workspace = None
         self.eval_script = None
+        self.task_context = None
 
 
 class ServerState():
@@ -339,11 +342,68 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         ]
 
 
+@MCP.resource("task://context")
+def task_context_resource() -> str:
+    """The current task: problem statement,
+    instance id, hints."""
+    if holder.task_context is None:
+        return ("no task configured yet")
+    problem = holder.task_context["problem_statement"]
+    instance_id = holder.task_context["instance_id"]
+    hints = holder.task_context["hints"]
+    return "\n".join([problem, instance_id, hints])
+
+@MCP.prompt()
+def fix_issue() -> str:
+    """Prompt guiding the autonomous agent through repository bug fixes."""
+    return (
+        "You are an autonomous software engineer fixing a real bug in a real "
+        "repository inside a container. Your goal: produce a correct, "
+        "minimal patch and submit it via final_answer().\n\n"
+        "First, understand the task. Read the resource task://context for the "
+        "issue description, the instance id, and any hints. The problem "
+        "statement is a real GitHub issue — read it completely before "
+        "touching anything.\n\n"
+        "Then, explore before you edit. Use "
+        "search_function_or_class_definition_in_code to find where the "
+        "relevant code is defined, then search_code and find_references to "
+        "understand how it is used. Read files with read_file before editing "
+        "them — the line numbers in its output are the ground truth. "
+        "Never guess at file contents.\n\n"
+        "Edit surgically. edit_file replaces an exact string: copy old_str "
+        "EXACTLY from the file, including indentation — if it matches in "
+        "multiple places the edit is refused and the line numbers are "
+        "reported; add surrounding lines to make it unique. Make the smallest "
+        "change that fixes the issue. Do not reformat, rename, or 'improve' "
+        "unrelated code.\n\n"
+        "Verify with the tests. run_tests executes the official test suite. "
+        "It may take seconds or minutes — be patient, and do not call it "
+        "repeatedly: make focused edits between runs. A non-zero exit code is "
+        "normal output, not a tool failure — read it, it tells you which "
+        "tests fail and why. If tests fail, use read_file and search_code "
+        "on the failing test file to understand what is expected. The tests "
+        "that must newly pass are the FAIL_TO_PASS set from the task "
+        "context.\n\n"
+        "Iterate efficiently. Outputs may be truncated with a hint showing "
+        "how to continue (offset or start_line parameters). Error messages "
+        "tell you what to do next — follow them. If you are stuck after "
+        "several attempts, re-read the issue: the answer is often in a "
+        "detail you skimmed.\n\n"
+        "Submit the deliverable. When the tests pass, call get_patch() to "
+        "retrieve the unified diff of all your changes — this patch IS the "
+        "deliverable. Check it: it should contain exactly your intended edits "
+        "and nothing else. Then call final_answer() with the patch as the "
+        "argument. Never submit an empty patch."
+    )
+
+
 stop_event = threading.Event()
+server_shutdown_event = asyncio.Event()
 
 
 def prepare_workspace(
-        holder, state: ServerState, image_name, mount_path, eval_script):
+        holder, state: ServerState, image_name, mount_path,
+        eval_script, problem, instance_id, hints):
     # announce the mood before starting work.
     state.set("preparing", "pulling image")
     try:
@@ -352,6 +412,11 @@ def prepare_workspace(
             # HTTP routes can use it.
             holder.workspace = dws
             holder.eval_script = eval_script
+            holder.task_context = {
+                "problem_statement": problem,
+                "instance_id": instance_id,
+                "hints": hints
+            }
             state.set("ready")
             # his line freezes the background thread right there.
             # stop_event is never set to green (stop_event.set()), the
@@ -369,14 +434,19 @@ async def setup_endpoint(request):
     Workflow:
     1. Parses incoming JSON payload containing setup parameters.
     2. Validates required fields: 'image_name' and 'eval_script'.
-    3. Atomically checks that server state is 'unconfigured' (rejects with 409 if active).
-    4. Spawns a background thread (prepare_workspace) to pull Docker images and build container.
-    5. Returns 202 Accepted immediately to avoid HTTP connection timeouts during long tasks.
+    3. Atomically checks that server state is 'unconfigured'
+    (rejects with 409 if active).
+    4. Spawns a background thread (prepare_workspace) to pull
+    Docker images and build container.
+    5. Returns 202 Accepted immediately to avoid HTTP connection
+    timeouts during long tasks.
     """
     # read the package 
     # becomes a Python dictionary assigned to data
     data = await request.json()
-    required_keys = ["image_name", "eval_script"]
+    required_keys = [
+        "image_name", "eval_script", "problem_statement", "instance_id",
+        "hints"]
     missing_fields = [k for k in required_keys if k not in data]
     if missing_fields:
         return JSONResponse(
@@ -391,7 +461,8 @@ async def setup_endpoint(request):
     # this is the thread that will be frozen forever in the with block
     threading.Thread(target=prepare_workspace, args=(
         holder, server_state, data["image_name"], mount_path,
-        data["eval_script"]), daemon=True).start()
+        data["eval_script"], data["problem_statement"],
+        data["instance_id"], data["hints"]), daemon=True).start()
     # return this immediately to avoid timeout
     # the client polls /ready
     return JSONResponse({"state": "preparing"}, status_code=202)
@@ -407,6 +478,16 @@ async def ready_endpoint(request):
     """
     return JSONResponse(server_state.snapshot())
 
+
+async def shutdown_endpoint(request):
+    stop_event.set()
+    # Release the lifespan shutdown waiter to exit the with block
+    server_shutdown_event.set()
+    # Send SIGTERM to self to kick off Uvicorn's graceful exit sequence
+    os.kill(os.getpid(), signal.SIGTERM)
+    return JSONResponse({"status": "shutting down"})
+
+
 @asynccontextmanager
 async def lifespan(app):
     # The MCP session manager must stay running while the HTTP server is alive.
@@ -415,6 +496,7 @@ async def lifespan(app):
     async with MCP.session_manager.run():
         # Keep the session manager alive for the entire lifetime of the server.
         yield
+        await server_shutdown_event.wait()
     # When I use MCP.run(), the MCP SDK manages its lifecycle for me. When I
     # create my own Starlette app and mount MCP.streamable_http_app(), I must
     # explicitly keep the MCP session manager alive using Starlette's lifespan
@@ -428,6 +510,7 @@ def main() -> None:
         routes = [
             Route("/setup", setup_endpoint, methods=["POST"]),
             Route("/ready", ready_endpoint, methods=["GET"]),
+            Route("/shutdown", shutdown_endpoint, methods=["POST"])
         ]
         # initialize a Starlette application (which FastAPI is built on top of) and
         # hand it your routes list (/setup and /ready).
@@ -446,25 +529,35 @@ def main() -> None:
         # Starts the Uvicorn http web server listening on port 8000
         # turns your custom web server and your MCP server into a
         # single, unified service running under one PID on port 8000
+
+        def handle_shutdown(signum, frame):
+            stop_event.set()          # wake the parked thread
+        signal.signal(signal.SIGTERM, handle_shutdown)
+        signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
         uvicorn.run(app, host="127.0.0.1", port=8000)
         return
+    elif "--stdio" in sys.argv:
+        problem = os.environ.get("SWEBENCH_PROBLEM_STATEMENT", "xr.where with scalar as second argument fails with keep_attrs=True\n### What happened?\n\n``` python\r\nimport xarray as xr\r\n\r\nxr.where(xr.DataArray([1, 2, 3]) > 0, 1, 0)\r\n```\r\n\r\nfails with\r\n\r\n```\r\n   1809 if keep_attrs is True:\r\n   1810     # keep the attributes of x, the second parameter, by default to\r\n   1811     # be consistent with the `where` method of `DataArray` and `Dataset`\r\n-> 1812     keep_attrs = lambda attrs, context: attrs[1]\r\n   1814 # alignment for three arguments is complicated, so don't support it yet\r\n   1815 return apply_ufunc(\r\n   1816     duck_array_ops.where,\r\n   1817     cond,\r\n   (...)\r\n   1823     keep_attrs=keep_attrs,\r\n   1824 )\r\n\r\nIndexError: list index out of range\r\n```\r\n\r\nThe workaround is to pass `keep_attrs=False`\n\n### What did you expect to happen?\n\n_No response_\n\n### Minimal Complete Verifiable Example\n\n_No response_\n\n### Relevant log output\n\n_No response_\n\n### Anything else we need to know?\n\n_No response_\n\n### Environment\n\nxarray 2022.3.0\n")
+        instance_id = os.environ.get("SWEBENCH_INSTANCE_ID", "pydata__xarray-6461")
+        hint = os.environ.get("SWEBENCH_HINTS", "")
+        image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest")
+        mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed_pydata__xarray-6461")
+        eval_script = os.environ.get("SWEBENCH_EVAL_SCRIPT", "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit -c core.fileMode=false diff 851dadeb0338403e5021c3fbe80cbc9127ee672d\nsource /opt/miniconda3/bin/activate\nconda activate testbed\npython -m pip install -e .\ngit checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/xarray/tests/test_computation.py b/xarray/tests/test_computation.py\n--- a/xarray/tests/test_computation.py\n+++ b/xarray/tests/test_computation.py\n@@ -1928,6 +1928,10 @@ def test_where_attrs() -> None:\n     expected = xr.DataArray([1, 0], dims=\"x\", attrs={\"attr\": \"x\"})\n     assert_identical(expected, actual)\n \n+    # ensure keep_attrs can handle scalar values\n+    actual = xr.where(cond, 1, 0, keep_attrs=True)\n+    assert actual.attrs == {}\n+\n \n @pytest.mark.parametrize(\"use_dask\", [True, False])\n @pytest.mark.parametrize(\"use_datetime\", [True, False])\n\nEOF_114329324912\n: '>>>>> Start Test Output'\npytest -rA xarray/tests/test_computation.py\n: '>>>>> End Test Output'\ngit checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py\n")
 
-    image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.sympy_1776_sympy-14711")
-    mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed")
-    eval_script = os.environ.get(
-        "SWEBENCH_EVAL_SCRIPT", """#!/bin/bash
-        source /opt/miniconda3/bin/activate testbed
-        ./bin/test sympy/core/tests/test_symbol.py""")
-
-    with DockerWorkspace(mount_path, image_name=image_name) as ws:
-        # 3. Bind tools to workspace and server instance
-        holder.eval_script = eval_script
-        holder.workspace = ws
-        create_bound_tools(holder)
-        # if "--http" in sys.argv:
-        #     MCP.run(transport="streamable-http")
-        # else:
-        MCP.run()   # stdio is the default
+        with DockerWorkspace(mount_path, image_name=image_name) as ws:
+            # 3. Bind tools to workspace and server instance
+            holder.eval_script = eval_script
+            holder.workspace = ws
+            holder.task_context = {
+                "problem_statement": problem,
+                "instance_id": instance_id,
+                "hints": hint
+            }
+            create_bound_tools(holder)
+            MCP.run()   # stdio is the default
+    else:
+        raise ValueError(
+            "Connection type doesn't exist ! Try 'http' or 'stdio'")
 
     # --------------------STDIO-----------------
     # use command to start server using stdio, opens the Web UI automatically:
@@ -480,9 +573,11 @@ def main() -> None:
     #  → EXPECT {"state": "unconfigured"}
     # curl -X POST http://127.0.0.1:8000/setup \
     #    -H "Content-Type: application/json" \
-    #    -d '{"image_name":"swebench/sweb.eval.x86_64.sympy_1776_sympy-14711",
+    #    -d '{"image_name":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
     #         "eval_script":"echo hello",
-    #         "instance_id":"ep-test"}'
+    #         "instance_id":"pydata__xarray-6461",
+    #         "problem_statement": "bug in repo, keeps crashing",
+    #         "hints": "focus on search named functions"}'
     #  → EXPECT 202 {"state": "preparing"}
     # (repeat the POST immediately)
     #  → EXPECT 409
@@ -492,6 +587,7 @@ def main() -> None:
     # npx @modelcontextprotocol/inspector http://127.0.0.1:8000/mcp
     #  → connect → call read_file("README.rst", 1, 5)
     #  → EXPECT cat-n sympy output
+    # curl -X POST http://127.0.0.1:8000/shutdown
 
 
 if __name__ == "__main__":

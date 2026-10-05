@@ -25,6 +25,7 @@ class Agent:
         self.tools: str = ""
         self.messages: list = []
         self.docker_image: DockerImage | None = None
+        self.benchmark = ""
     
     def set_docker_image(self, docker_image: DockerImage) -> None:
         self.docker_image = docker_image
@@ -33,10 +34,12 @@ class Agent:
     def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
         if isinstance(task, MBPPTaskInput):
-            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_mbpp_tools()])
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
+            self.benchmark = "mbpp"
             return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
         if isinstance(task, SWEBenchTaskInput):
             self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
+            self.benchmark = "swe_bench"
             return task.instance_id, "swebench", Prompts.swebench_task(task)
         raise TypeError(f"Unsupported task type: {type(task).__name__}")
 
@@ -83,7 +86,7 @@ class Agent:
         task_id, benchmark, task_prompt = self._describe(task)
         start = time.time()
         self.messages = [
-            {"role": "system", "content": Prompts.system_prompt(self.tools)},
+            {"role": "system", "content": Prompts.system_prompt(self.tools, self.benchmark)},
             {"role": "user", "content": task_prompt}
         ]
 
