@@ -10,6 +10,7 @@ import fire
 import asyncio
 import json
 from sandbox.security import configurate_sandbox
+from time import sleep
 
 
 SBX: SandboxConfig = SandboxConfig()
@@ -87,10 +88,18 @@ class SandBox():
         return meta_data
     
     def pull_image(self, image: DockerImage | None = None) -> None:
-        image = image.json()
-        
-        
-        return (result)
+        data = image.model_dump()
+        print("docker image is pulling ...")
+        response = self.mcp_client.pull_image(data)
+        print(response.status_code)
+
+        if response.status_code == 200 or response.status_code == 202:
+            while True:
+                result = self.mcp_client.check_docker_image()
+                if result.json()["state"] == "ready":
+                    break
+                sleep(1)
+            print("docker image is pulled seccessfuly.")
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
         pass

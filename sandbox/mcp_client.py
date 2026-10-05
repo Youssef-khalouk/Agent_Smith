@@ -1,6 +1,7 @@
 from mcp.client.stdio import stdio_client
 from mcp import Client, StdioServerParameters
 from typing import Tuple, Dict, Any
+import requests
 
 
 class Mcps():
@@ -19,6 +20,28 @@ class Mcps():
                 "http://localhost:8000/setup",
                 headers={"Authorization": "Bearer "},
                 json=docker_image,
+                timeout=60,
+            )
+        except Exception as e:
+            return f"server connection failed: {e}"
+        return response
+
+    def check_docker_image(self):
+        try:
+            response = requests.get(
+                "http://localhost:8000/ready",
+                headers={"Authorization": "Bearer "},
+                timeout=60,
+            )
+        except Exception as e:
+            return f"server connection failed: {e}"
+        return response
+    
+    def shutdown_image(self):
+        try:
+            response = requests.get(
+                "http://localhost:8000/ready",
+                headers={"Authorization": "Bearer "},
                 timeout=60,
             )
         except Exception as e:
