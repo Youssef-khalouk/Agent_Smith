@@ -18,6 +18,30 @@ class LLMProvider:
         self.model_name = model_name
         self._key_index = 0
         self.tools = []
+    
+    def _get_reasoning_params(self):
+        model = self.model_name.lower()
+
+        # Groq GPT-OSS
+        if model.startswith("openai/gpt-oss"):
+            return {"include_reasoning": False}
+
+        # Groq Qwen
+        if model.startswith("qwen/qwen3"):
+            return {"reasoning_effort": "none"}
+
+        # Mistral reasoning models
+        if "mistral" in model:
+            return {"reasoning_effort": "none"}
+
+        # Cohere reasoning
+        if "command-a-reasoning" in model:
+            return {
+                "thinking": {
+                    "type": "disabled"
+                }
+            }
+        return {}
 
     def _current_key(self) -> str:
         return self.api_keys[self._key_index]
@@ -39,12 +63,13 @@ class LLMProvider:
                     json={
                         "model": self.model_name,
                         "messages": messages,
-                        "stop": stop_sequences
+                        # "stop": stop_sequences,
+                        **self._get_reasoning_params()
                     },
                     timeout=60,
                 )
                 if response.status_code == 429:
-                    raise RateLimitError(f"Rate limited on key index {self._key_index}")
+                    raise RateLimitError(f" Rate limited on key index {self._key_index}")
                 response.raise_for_status()  # raise any error if there is.
                 data = response.json()
                 latency_ms = (time.time() - start) * 1000
@@ -57,7 +82,10 @@ class LLMProvider:
                     retries=attempt,
                 )
             except (RateLimitError, requests.RequestException) as e:
-                last_error = e
+                if last_error == None:
+                    last_error = str(e)
+                else:
+                    last_error += str(e)
                 self._rotate_key()
 
-        raise RuntimeError(f"All API keys exhausted. Last error: {last_error}")
+        raise RuntimeError(f"All API keys exhausted. error: {last_error}")

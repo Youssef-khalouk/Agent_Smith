@@ -5,39 +5,40 @@ MBPP_EXAMPLE = """
 Example:
 Thought: I'll write a first version and add an assertion to verify that the function behaves correctly.
 ```python
-solution = '''
+solution = \"\"\"
 def add(a, b):
     return a - b
 
 assert add(1, 2) == 3
-'''
+\"\"\"
 print(run_tests(solution))
 ```<end_code>
 
 Observation:
-AssertionError: assert add(1, 2) == 3
+Stdout: AssertionError: assert add(1, 2) == 3
 Expected: 3
 Got: -1
 
 Thought: The assertion failed because the function subtracts instead of adding. I'll change the operator and run the assertion again.
 ```python
-solution = '''
+solution = \"\"\"
 def add(a, b):
     return a + b
 
 assert add(1, 2) == 3
-'''
+\"\"\"
 print(run_tests(solution))
 ```<end_code>
 
 Observation:
+Stdout: 
 
 Thought: The assertion passed, so the solution is verified. I'll now submit the solution without the test assertion.
 ```python
-solution = '''
+solution = \"\"\"
 def add(a, b):
     return a + b
-'''
+\"\"\"
 final_answer(solution)
 ```<end_code>
 
@@ -100,6 +101,8 @@ class Prompts:
             "\n"
             "IMPORTANT:\n"
             "- Every response must contain exactly: a short Thought, then ONE python code block, then <end_code>.\n"
+            "- Don't send me reasoning.\n"
+            "- Only return the requested response in the specified format.\n"
             "- The Thought explains what you are about to do and why, in one or two lines.\n"
             "- The code must be inside a single ```python ... ``` block. Never split it into multiple blocks.\n"
             "- Never write an Observation yourself. Wait for the real one after your code runs.\n"
