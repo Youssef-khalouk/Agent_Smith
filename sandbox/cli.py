@@ -4,9 +4,11 @@ from .mcp_client import Mcps
 import subprocess
 
 
-def interactive(sandbox: SandBox,
-                config_file: str | None = None) -> str:
+def interactive(sandbox: SandBox, config_file: str | None = None) -> None:
     while True:
+        if not sandbox.is_ok:
+            print (sandbox.error)
+            break
         try:
             code = input(">>> ")
         except (EOFError, KeyboardInterrupt):
@@ -19,14 +21,16 @@ def interactive(sandbox: SandBox,
 
 def main() -> None:
     args: int = len(sys.argv)
-    sbx = SandBox()
     if args == 1:
+        sbx: SandBox = SandBox()
         print("Interactive sandbox launched successfully")
         interactive(sbx)
-    if args == 2:
+    elif args == 2:
+        sbx: SandBox = SandBox()
         print("Interactive sandbox launched successfully")
         interactive(sbx, sys.argv[1])
-    if sys.argv[1] == "--mcp-stdio":
+    elif sys.argv[1] == "--mcp-stdio":
+        sbx = SandBox(connection_type="stdio")
         command_line: List[str] = sys.argv[2].split()
         print("Interactive sandbox launched successfully")
         sub_proc = subprocess.run(
@@ -36,9 +40,10 @@ def main() -> None:
             stderr=subprocess.PIPE
         )
         interactive(sbx, sys.argv[3])
-    if sys.argv[1] == "--mcp-server":
-        print("Interactive sandbox launched successfully")
+    elif sys.argv[1] == "--mcp-server":
         url: str = sys.argv[2]
+        sbx = SandBox(url=url)
+        print("Interactive sandbox launched successfully")
         sub_proc = subprocess.run(
             ["python3", "mcp_tools_mbbp.py", '--http'],
             stdout=subprocess.PIPE,
@@ -46,6 +51,7 @@ def main() -> None:
             stderr=subprocess.PIPE
         )
         interactive(sbx)
-
+    else:
+        print("somthing went wrong!!")
 if __name__ == "__main__":
     main()

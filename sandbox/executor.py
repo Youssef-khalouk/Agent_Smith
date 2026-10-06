@@ -13,15 +13,21 @@ from sandbox.security import configurate_sandbox
 
 SBX: SandboxConfig = SandboxConfig()
 
+URL = ""
+CONNECTION_TYPE = "http"
+
 
 async def call_mcp_tool(function_name: str, kwargs: dict):
-    try:
-        async with Client("http://localhost:8000/mcp") as client:
-            result = await client.call_tool(function_name, kwargs)
-    except Exception as e:
-        print (f"MCP server connection failed: {e}")
-        exit(1)
-    return result.structured_content
+    if CONNECTION_TYPE == "http":
+        try:
+            async with Client(f"{URL}mcp") as client:
+                result = await client.call_tool(function_name, kwargs)
+        except Exception as e:
+            print (f"MCP server connection failed: {e}")
+            exit(1)
+        return result.structured_content["result"]
+    else:
+        pass
 
 def execute_tool(function_name: str, functions_keys) -> callable:
     def func(*args, **kwargs):
@@ -31,10 +37,7 @@ def execute_tool(function_name: str, functions_keys) -> callable:
                 kwargs[key] = args[i]
             else:
                 break
-        print(kwargs)
-        return asyncio.run(
-            call_mcp_tool(function_name, kwargs)
-        )
+        return asyncio.run(call_mcp_tool(function_name, kwargs))
     return func
 
 
@@ -63,7 +66,12 @@ def final_answer(value: str) -> str:
 def exec_code(code: str,
               tool_names: List[str],
               config_file: str | None,
-              functions_keys: dict[str, list[str]]) -> str:
+              functions_keys: dict[str, list[str]],
+              connection_type: str = "http",
+              url: str = "http://localhost:8000/") -> str:
+    global URL, CONNECTION_TYPE
+    URL = url
+    CONNECTION_TYPE = connection_type
     configurate_sandbox(config_file, SBX)
     name_space: Dict[str, str] = {
         "sorted": builtins.sorted,

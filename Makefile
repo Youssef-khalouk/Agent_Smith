@@ -79,7 +79,7 @@ fclean: clean
 	rm -rf output
 	rm -rf tasks
 	rm -rf log.txt
-	rm messages.txt
+	rm -rf messages.txt
 
 #######################################################
 
@@ -88,7 +88,7 @@ test_ai:
 	uv run python -m tests.test_ai
 
 test_sbx:
-	uv run python -m tests.test_sandbox_security
+	uv run python -m tests.test_sandbox
 
 
 test_orchestrator:
@@ -102,6 +102,9 @@ start_mbpp_server_http:
 
 start_mcp_server_stdio:
 	uv run python3 mcp_tools_swebench.py --stdio >> log.txt 2>&1 &
+
+stop_mbpp_server:
+	pkill -9 -f "mcp_tools_mbpp"
 
 stop_mcp_server:
 	pkill -9 -f "mcp_tools_swebench"

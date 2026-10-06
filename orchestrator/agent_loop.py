@@ -17,7 +17,7 @@ class Agent:
                  timeout_seconds: int):
 
         self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
-        self.sandbox = SandBox()
+        self.sandbox = SandBox()  # url="http://10.11.8.4:8000/"
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
         self.max_output_tokens: int = max_output_tokens
@@ -34,11 +34,11 @@ class Agent:
     def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
         if isinstance(task, MBPPTaskInput):
-            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_tools_metadata()])
             self.benchmark = "mbpp"
             return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
         if isinstance(task, SWEBenchTaskInput):
-            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_tools_metadata()])
             self.benchmark = "swe_bench"
             return task.instance_id, "swebench", Prompts.swebench_task(task)
         raise TypeError(f"Unsupported task type: {type(task).__name__}")
