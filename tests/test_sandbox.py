@@ -2,8 +2,13 @@ import asyncio
 from sandbox.sandbox import SandBox
 from sandbox.mcp_client import Mcps
 import traceback
+from models import DockerImage
 
-# sbx = SandBox()
+sbx = SandBox()
+docker_image = DockerImage(instance_id="1",
+                           problem_statement="problem",
+                           docker_image="docker_image",
+                           eval_script="eval")
 
 code = """
 import heapq
@@ -11,6 +16,9 @@ print(sorted([100, 5, 10, 20]))
 """
 
 async def main():
+    result = sbx.pull_image(docker_image)
+    print(result)
+    exit()
     # print(sbx.pull_image())
     # exit()
     # await sbx.initialize()

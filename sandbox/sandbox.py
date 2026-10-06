@@ -30,7 +30,7 @@ class SandBox():
         ]
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
-        asyncio.run(self.parse_mcp_tools())
+        # asyncio.run(self.parse_mcp_tools())
 
     
     def get_error(self) -> str:
@@ -90,15 +90,26 @@ class SandBox():
         data = image.model_dump()
         print("docker image is pulling ...")
         response = self.mcp_client.pull_image(data)
-        print(response.status_code)
-
-        if response.status_code == 200 or response.status_code == 202:
+        # if the server is not running the response get asigned with a string:
+        # Failed to establish a new connection: [Errno 111] Connection refused"
+        if isinstance(response, str):
+            self.error = response
+            self.is_ok = False
+        elif response.status_code in (400, 409):
+            self.error = response.json()["error"]
+            self.is_ok = False
+        elif response.status_code == 200 or response.status_code == 202:
             while True:
                 result = self.mcp_client.check_docker_image()
+                if isinstance(result, str):
+                    self.error = result
+                    self.is_ok = False
                 if result.json()["state"] == "ready":
                     break
                 sleep(1)
             print("docker image is pulled seccessfuly.")
+        else:
+            print("")
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
         pass
@@ -164,10 +175,12 @@ class SandBox():
         return output
 
     def exec_code(self, code: str,
-                  config_file: str | None = None) -> str:
+                  config_file: str | None = None,
+                  connection_type: str = "http") -> str:
         result: str
         configurate_sandbox(config_file, SBX)
-        result = self.create_environment(code, config_file)
+        result = self.create_environment(code, config_file,
+                                         connection_type)
         return result
 
 
