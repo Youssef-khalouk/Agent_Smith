@@ -25,7 +25,7 @@ async def call_mcp_tool(function_name: str, kwargs: dict):
         except Exception as e:
             print (f"MCP server connection failed: {e}")
             exit(1)
-        return result.structured_content
+        return result.structured_content["result"]
     else:
         pass
 
@@ -37,14 +37,11 @@ def execute_tool(function_name: str, functions_keys) -> callable:
                 kwargs[key] = args[i]
             else:
                 break
-        print(kwargs)
-        return asyncio.run(
-            call_mcp_tool(function_name, kwargs)
-        )
+        return asyncio.run(call_mcp_tool(function_name, kwargs))
     return func
 
 
-def safe_opURLen(file, flag):
+def safe_open(file, flag):
     real_open = builtins.open
     path = os.path.abspath(os.fspath(file))
     for direct in SBX.allowed_directories:
@@ -72,6 +69,7 @@ def exec_code(code: str,
               functions_keys: dict[str, list[str]],
               connection_type: str = "http",
               url: str = "http://localhost:8000/") -> str:
+    global URL, CONNECTION_TYPE
     URL = url
     CONNECTION_TYPE = connection_type
     configurate_sandbox(config_file, SBX)
