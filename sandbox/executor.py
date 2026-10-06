@@ -13,14 +13,14 @@ from sandbox.security import configurate_sandbox
 
 SBX: SandboxConfig = SandboxConfig()
 
-URL = "http://localhost:8000/mcp"
+URL = ""
 CONNECTION_TYPE = "http"
 
 
 async def call_mcp_tool(function_name: str, kwargs: dict):
     if CONNECTION_TYPE == "http":
         try:
-            async with Client(URL) as client:
+            async with Client(f"{URL}mcp") as client:
                 result = await client.call_tool(function_name, kwargs)
         except Exception as e:
             print (f"MCP server connection failed: {e}")
@@ -44,7 +44,7 @@ def execute_tool(function_name: str, functions_keys) -> callable:
     return func
 
 
-def safe_open(file, flag):
+def safe_opURLen(file, flag):
     real_open = builtins.open
     path = os.path.abspath(os.fspath(file))
     for direct in SBX.allowed_directories:
@@ -71,7 +71,7 @@ def exec_code(code: str,
               config_file: str | None,
               functions_keys: dict[str, list[str]],
               connection_type: str = "http",
-              url: str = "http://localhost:8000/mcp") -> str:
+              url: str = "http://localhost:8000/") -> str:
     URL = url
     CONNECTION_TYPE = connection_type
     configurate_sandbox(config_file, SBX)

@@ -27,7 +27,7 @@ def run_tests(code: str) -> str:
         output += f"\nSTDERR: {stderr.getvalue()}"
     return output
 
-@mcp.resource("task://context")
+@mcp.resource("task://current")
 def task_resource() -> str:
     return ""
 
