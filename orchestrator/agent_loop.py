@@ -17,7 +17,7 @@ class Agent:
                  timeout_seconds: int):
 
         self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
-        self.sandbox = SandBox()  # url="http://10.11.8.4:8000/"
+        self.sandbox = SandBox()  # url="http://10.11.7.5:8000/"
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
         self.max_output_tokens: int = max_output_tokens
@@ -117,8 +117,8 @@ class Agent:
                     observation = f"Error: {type(e).__name__}: {e}"
             
             steps.append(self._metrics(step, result, extracted_code, str(observation)))
-            
-            self.messages.append({"role": "assistant", "content": result.text})
+            code_block = f"```python\n{extracted_code}\n```" if extracted_code else ""
+            self.messages.append({"role": "assistant", "content": f"Thought: {thought}\n{code_block}"})
             self.messages.append({"role": "user", "content": Prompts.observation(observation)})
 
             if self.sandbox.final_answer_called:

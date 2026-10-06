@@ -94,7 +94,7 @@ class SandBox():
         meta_data += f") -> "
         return_type = __extract_types("result", output_schema)
         meta_data += f"{return_type}: "
-        meta_data += f"Description: {tool.description}"
+        # meta_data += f"Description: {tool.description}"
         return meta_data
     
     def pull_image(self, image: DockerImage | None = None) -> None:
