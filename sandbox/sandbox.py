@@ -77,7 +77,7 @@ class SandBox():
                 arg_type = data
             return arg_type
         arg_type: str
-        return_type: str
+        return_type: strmcp_client
         keys: List[str] = []
         meta_data = f"- def {tool.name}("
         input_schema = tool.input_schema["properties"]
@@ -99,7 +99,7 @@ class SandBox():
     
     def pull_image(self, image: DockerImage | None = None) -> None:
         data = image.model_dump()
-        response = self.mcp_client.pull_image(data)
+        response = self.mcp_client.pull_image(data, self.url)
         # if the server is not running the response get asigned with a string:
         # Failed to establish a new connection: [Errno 111] Connection refused"
         if isinstance(response, str):
@@ -112,11 +112,11 @@ class SandBox():
             return
         elif response.status_code == 200 or response.status_code == 202:
             while True:
-                result = self.mcp_client.check_docker_image()
+                result = self.mcp_client.check_docker_image(self.url)
                 if (isinstance(result, str) or result.json()["state"] == "failed"):
                     self.error = result
                     self.is_ok = False
-                    return
+                    retrueturn
                 if result.json()["state"] == "ready":
                     break
                 sleep(1)
@@ -126,7 +126,7 @@ class SandBox():
             return
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
-        result = self.mcp_client.shutdown_image()
+        result = self.mcp_client.shutdown_image(self.url)
 
     def parse_mcp_tools(self):
         try:

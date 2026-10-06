@@ -43,10 +43,10 @@ class Mcps():
             return ("Connection already closed.")
         return ("Connection closed.")
 
-    def pull_image(self, docker_image: any) -> None:
+    def pull_image(self, docker_image: any, url: str) -> None:
         try:
             response = requests.post(
-                f"{self.url}setup",
+                f"{url}setup",
                 headers={"Authorization": "Bearer "},
                 json=docker_image,
                 timeout=60,
@@ -55,10 +55,10 @@ class Mcps():
             return f"server connection failed: {e}"
         return response
 
-    def check_docker_image(self):
+    def check_docker_image(self, url: str):
         try:
             response = requests.get(
-                f"{self.url}ready",
+                f"{url}ready",
                 headers={"Authorization": "Bearer "},
                 timeout=60,
             )
@@ -66,10 +66,10 @@ class Mcps():
             return f"server connection failed: {e}"
         return response
     
-    def shutdown_image(self):
+    def shutdown_image(self, url: str):
         try:
             response = requests.get(
-                f"{self.url}shutdown",
+                f"{url}shutdown",
                 headers={"Authorization": "Bearer "},
                 timeout=60,
             )
