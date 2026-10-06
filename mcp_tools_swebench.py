@@ -398,7 +398,6 @@ def fix_issue() -> str:
 
 
 stop_event = threading.Event()
-server_shutdown_event = asyncio.Event()
 
 
 def prepare_workspace(
@@ -423,6 +422,11 @@ def prepare_workspace(
             # thread pauses forever inside the with block.
             # now agent gets a chance to use container until green light.
             stop_event.wait()
+        holder.workspace = None
+        holder.eval_script = None
+        holder.task_context = None
+        stop_event.clear()
+        state.set("unconfigured")
     except Exception as e:
         state.set("failed", error=str(e))
 
@@ -443,7 +447,12 @@ async def setup_endpoint(request):
     """
     # read the package 
     # becomes a Python dictionary assigned to data
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"error": "invalid JSON body — request body must be valid JSON"}
+        )
     required_keys = [
         "docker_image", "eval_script", "problem_statement", "instance_id",
         "hints_text"]
@@ -481,11 +490,7 @@ async def ready_endpoint(request):
 
 async def shutdown_endpoint(request):
     stop_event.set()
-    # Release the lifespan shutdown waiter to exit the with block
-    server_shutdown_event.set()
-    # Send SIGTERM to self to kick off Uvicorn's graceful exit sequence
-    os.kill(os.getpid(), signal.SIGTERM)
-    return JSONResponse({"status": "shutting down"})
+    return JSONResponse({"status": "task ended - container removed"})
 
 
 @asynccontextmanager
@@ -496,7 +501,6 @@ async def lifespan(app):
     async with MCP.session_manager.run():
         # Keep the session manager alive for the entire lifetime of the server.
         yield
-        await server_shutdown_event.wait()
     # When I use MCP.run(), the MCP SDK manages its lifecycle for me. When I
     # create my own Starlette app and mount MCP.streamable_http_app(), I must
     # explicitly keep the MCP session manager alive using Starlette's lifespan
@@ -573,9 +577,9 @@ def main() -> None:
     #  → EXPECT {"state": "unconfigured"}
     # curl -X POST http://127.0.0.1:8000/setup \
     #    -H "Content-Type: application/json" \
-    #    -d '{"docker_image":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
+    #    -d '{"docker_image":"swebench/sweb.eval.x86_64.sympy_1776_sympy-13480:latest",
     #         "eval_script":"echo hello",
-    #         "instance_id":"pydata__xarray-6461",
+    #         "instance_id":"sympy-1776",
     #         "problem_statement": "bug in repo, keeps crashing",
     #         "hints_text": "focus on search named functions"}'
     #  → EXPECT 202 {"state": "preparing"}
