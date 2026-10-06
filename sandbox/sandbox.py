@@ -125,7 +125,7 @@ class SandBox():
             self.is_ok = False
             return
 
-    def shotdown_image(self, image: DockerImage | None = None) -> None:
+    def shutdown_image(self, image: DockerImage | None = None) -> None:
         result = self.mcp_client.shutdown_image()
 
     def parse_mcp_tools(self):
