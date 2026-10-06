@@ -88,7 +88,7 @@ test_ai:
 	uv run python -m tests.test_ai
 
 test_sbx:
-	uv run python -m tests.test_sandbox_security
+	uv run python -m tests.test_sandbox
 
 
 test_orchestrator:

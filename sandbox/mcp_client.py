@@ -1,10 +1,22 @@
 from mcp.client.stdio import stdio_client
-from mcp import Client, StdioServerParameters
+from mcp import Client, StdioServerParameters as Params
 from typing import Tuple, Dict, Any
 import requests
 
 
 class Mcps():
+
+    def __init__(self) -> None:
+        self.server_params: Params = Params(
+            command="uv",
+            args=[
+                "run",
+                "python3",
+                "mcp_tools_swebench.py",
+                "--stdio"
+            ]
+        )
+        self.url: str = "http://localhost:8000/"
 
     async def get_tools(self, url: str = "http://localhost:8000/") -> str | None: # 
         try:
@@ -40,7 +52,7 @@ class Mcps():
     def shutdown_image(self):
         try:
             response = requests.get(
-                "http://localhost:8000/ready",
+                "http://localhost:8000/shutdown",
                 headers={"Authorization": "Bearer "},
                 timeout=60,
             )
@@ -51,16 +63,7 @@ class Mcps():
     async def stdio_connection(self, tool_call: Tuple[str, Any]) -> Any:
         try:
             result = ''
-            server_params = StdioServerParameters(
-                command="uv",
-                args=[
-                    "run",
-                    "python3",
-                    "mcp_tools_swebench.py",
-                    "--stdio"
-                ]
-            )
-            async with Client(server_params) as client:
+            async with Client(self.server_params) as client:
                 res = await client.list_tools()
                 print(res)
                 result = await client.call_tool(
