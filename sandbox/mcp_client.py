@@ -16,9 +16,10 @@ class Mcps():
                 "--stdio"
             ]
         )
-        self.url: str = "http://localhost:8000/"
+        self.client = None
+        self.context = None
 
-    async def get_tools(self, url: str = "http://localhost:8000/") -> str | None: # 
+    async def get_tools_http(self, url: str) -> str | None: # 
         try:
             async with Client(f"{url}mcp") as client:
                 tools = await client.list_tools()
@@ -26,10 +27,26 @@ class Mcps():
             return (f"MCP server connection failed: {e}")
         return tools
     
+    async def get_tools_stdio(self) -> str | None:
+        try:
+            self.context = Client(self.server_params)
+            self.client = self.context.__aenter__()
+            tools = await self.client.list_tools()
+        except Exception as e:
+            print(e)
+        return tools
+
+    def close_stdio_connection(self) -> str:
+        if self.context != None:
+            self.context.__aexit__()
+        else:
+            return ("Connection already closed.")
+        return ("Connection closed.")
+
     def pull_image(self, docker_image: any) -> None:
         try:
             response = requests.post(
-                "http://localhost:8000/setup",
+                f"{self.url}setup",
                 headers={"Authorization": "Bearer "},
                 json=docker_image,
                 timeout=60,
@@ -41,7 +58,7 @@ class Mcps():
     def check_docker_image(self):
         try:
             response = requests.get(
-                "http://localhost:8000/ready",
+                f"{self.url}ready",
                 headers={"Authorization": "Bearer "},
                 timeout=60,
             )
@@ -52,38 +69,11 @@ class Mcps():
     def shutdown_image(self):
         try:
             response = requests.get(
-                "http://localhost:8000/shutdown",
+                f"{self.url}shutdown",
                 headers={"Authorization": "Bearer "},
                 timeout=60,
             )
         except Exception as e:
             return f"server connection failed: {e}"
         return response
-
-    async def stdio_connection(self, tool_call: Tuple[str, Any]) -> Any:
-        try:
-            result = ''
-            async with Client(self.server_params) as client:
-                res = await client.list_tools()
-                print(res)
-                result = await client.call_tool(
-                    tool_call[0],
-                    tool_call[1]
-                )
-        except Exception as e:
-            print(e)
-        exit()
-        return result.structured_content
-
-    async def http_connection(self, tool_call: Tuple[str, Any],
-                              url: str = "http://localhost:8000/mcp",) -> None:
-        try:
-            async with Client(url) as client:
-                result = await client.call_tool(
-                    tool_call[0],
-                    tool_call[1]
-                )
-        except Exception as e:
-            print(e)
-        return (result.structured_content)
 

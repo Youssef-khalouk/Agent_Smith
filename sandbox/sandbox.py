@@ -17,7 +17,10 @@ SBX: SandboxConfig = SandboxConfig()
 
 
 class SandBox():
-    def __init__(self):
+    def __init__(self, connection_type: str = "http",
+                 url: str = "http://localhost:8000/"):
+        self.connection_type: str = connection_type
+        self.url: str = url
         self.error: str | None = None
         self.is_ok: bool = True
         self.final_answer_called: bool = False
@@ -30,9 +33,17 @@ class SandBox():
         ]
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
-        # asyncio.run(self.parse_mcp_tools())
+        self.tools: ListToolsResult = None
+        self.parse_mcp_tools()
 
-    
+    async def check_connection_type(self) -> None:
+        if self.connection_type == "http":
+            self.tools = await self.mcp_client.get_tools_http(self.url)
+        elif self.connection_type == "stdio":
+            self.tools = await self.mcp_client.get_tools_stdio()
+        else:
+            raise ValueError("Connection type not allowed. Try: 'http' or 'stdio'")
+
     def get_error(self) -> str:
         return (self.error)
 
@@ -88,49 +99,56 @@ class SandBox():
     
     def pull_image(self, image: DockerImage | None = None) -> None:
         data = image.model_dump()
-        print("docker image is pulling ...")
         response = self.mcp_client.pull_image(data)
         # if the server is not running the response get asigned with a string:
         # Failed to establish a new connection: [Errno 111] Connection refused"
         if isinstance(response, str):
             self.error = response
             self.is_ok = False
+            return
         elif response.status_code in (400, 409):
             self.error = response.json()["error"]
             self.is_ok = False
+            return
         elif response.status_code == 200 or response.status_code == 202:
             while True:
                 result = self.mcp_client.check_docker_image()
-                if isinstance(result, str):
+                if (isinstance(result, str) or result.json()["state"] == "failed"):
                     self.error = result
                     self.is_ok = False
+                    return
                 if result.json()["state"] == "ready":
                     break
                 sleep(1)
-            print("docker image is pulled seccessfuly.")
         else:
-            print("")
+            self.error = response.json()["error"]
+            self.is_ok = False
+            return
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
-        pass
+        result = self.mcp_client.shutdown_image()
 
-    async def parse_mcp_tools(self):
-        tools: ListToolsResult | str = await self.mcp_client.get_tools()
-        if isinstance(tools, str):
+    def parse_mcp_tools(self):
+        try:
+            asyncio.run(self.check_connection_type())
+        except Exception as e:
+            self.error = e
             self.is_ok = False
-            self.error = tools
-            print (tools)
-            exit(1)
+            return
+        if isinstance(self.tools, str):
+            self.is_ok = False
+            self.error = self.tools
+            return
         self.tools_meta_data_swe = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
         ]
-        for tool in tools.tools:
+        for tool in self.tools.tools:
             self.tool_names.append(tool.name)
             self.tools_meta_data.append(self._extract_data(tool))
     
-    def get_tools(self) -> List[str]:
+    def get_tools_metadata(self) -> List[str]:
         return(self.tools_meta_data)
 
     def _final_answer(self, value: str) -> None:
@@ -145,7 +163,9 @@ class SandBox():
              f"--code={code}",
              f"--tool_names={self.tool_names}",
              f"--config_file={config_file}",
-             f"--functions_keys={self.functions_keys_list}"],
+             f"--functions_keys={self.functions_keys_list}",
+             f"--connection_type={self.connection_type}",
+             f"--url={self.url}"],
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -174,13 +194,10 @@ class SandBox():
 
         return output
 
-    def exec_code(self, code: str,
-                  config_file: str | None = None,
-                  connection_type: str = "http") -> str:
+    def exec_code(self, code: str, config_file: str | None = None) -> str:
         result: str
         configurate_sandbox(config_file, SBX)
-        result = self.create_environment(code, config_file,
-                                         connection_type)
+        result = self.create_environment(code, config_file)
         return result
 
 
