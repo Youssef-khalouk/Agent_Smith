@@ -17,7 +17,7 @@ class Agent:
                  timeout_seconds: int):
 
         self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
-        self.sandbox = SandBox(url="http://10.11.8.4:8000/")
+        self.sandbox = SandBox()  # url="http://10.11.8.4:8000/"
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
         self.max_output_tokens: int = max_output_tokens
