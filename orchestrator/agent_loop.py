@@ -34,11 +34,11 @@ class Agent:
     def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
         if isinstance(task, MBPPTaskInput):
-            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_tools()])
             self.benchmark = "mbpp"
             return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
         if isinstance(task, SWEBenchTaskInput):
-            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_swe_tools()])
+            self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_tools()])
             self.benchmark = "swe_bench"
             return task.instance_id, "swebench", Prompts.swebench_task(task)
         raise TypeError(f"Unsupported task type: {type(task).__name__}")

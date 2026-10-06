@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 CLOSED_FENCE = re.compile(r"```(?:python|py)?[ \t]*\n(.*?)```", re.DOTALL)
-THOUGHT = re.compile(r"Thought:\s*(.*?)(?=\n```)", re.DOTALL)
+THOUGHT = re.compile(r"Thought:\s*(.*?)(?=\n```|```)", re.DOTALL)
 
 
 def extract_code(text: str) -> tuple[str, str]:
@@ -20,5 +20,5 @@ def extract_code(text: str) -> tuple[str, str]:
     thought = ""
     if match:
         thought = match.group(1).strip()
-    
+
     return (result, thought)
