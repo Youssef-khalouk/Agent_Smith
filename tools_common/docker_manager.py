@@ -212,11 +212,16 @@ class ContainerManager:
             self.container = None
 
     def extract(self):
-        git_dir = self.host_mount_path / ".git"
+        # A wipe is only legal at BIRTH — never while a live container
+        # is using this mount. Refuse instead of destroying active work.
+        if self.container is not None:
+            self.container.reload()
+            if self.container.status == "running":
+                return  # mid-task call: do nothing, mount is in use
+        if self.host_mount_path.exists():
+            shutil.rmtree(self.host_mount_path, ignore_errors=True)
         stage_dir = (
             self.host_mount_path.parent / f"tmp_{self.host_mount_path.name}")
-        if git_dir.exists():
-            return
         if stage_dir.exists():
             shutil.rmtree(stage_dir)
         blueprint = self.client.containers.create(image=self.image_name)

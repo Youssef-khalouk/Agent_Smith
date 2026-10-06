@@ -1,6 +1,6 @@
 from mcp.server.mcpserver import MCPServer
 import threading
-import asyncio
+import shutil
 import signal
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
@@ -426,6 +426,7 @@ def prepare_workspace(
         holder.eval_script = None
         holder.task_context = None
         stop_event.clear()
+        shutil.rmtree(mount_path, ignore_errors=True)
         state.set("unconfigured")
     except Exception as e:
         state.set("failed", error=str(e))
