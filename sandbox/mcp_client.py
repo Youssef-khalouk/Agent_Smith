@@ -69,7 +69,7 @@ class Mcps():
     def shutdown_image(self, url: str):
         try:
             response = requests.post(
-                f"{self.url}shutdown",
+                f"{url}shutdown",
                 headers={"Authorization": "Bearer "},
                 json={},
                 timeout=60,
