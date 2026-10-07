@@ -60,6 +60,11 @@ def agent_swe_bench(task_file: str, output: str, model_name: str, provider_url: 
         print(f"Error: {e}")
         exit(1)
 
+    except KeyboardInterrupt as e:
+        agent.sandbox.shotdown_image()
+        print("ctrl + c detected.")
+        exit(1)
+
 
 if __name__ == "__main__":
     fire.Fire(agent_swe_bench)

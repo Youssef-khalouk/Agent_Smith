@@ -57,6 +57,10 @@ def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
     except Exception as e:
         print(f"Error: {e}")
         exit(1)
+    
+    except KeyboardInterrupt as e:
+        print("ctrl + c detected.")
+        exit(1)
 
 if __name__ == "__main__":
     fire.Fire(agent_mbpp)
