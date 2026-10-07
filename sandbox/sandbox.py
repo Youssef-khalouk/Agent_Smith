@@ -77,7 +77,7 @@ class SandBox():
                 arg_type = data
             return arg_type
         arg_type: str
-        return_type: strmcp_client
+        return_type: str
         keys: List[str] = []
         meta_data = f"- def {tool.name}("
         input_schema = tool.input_schema["properties"]

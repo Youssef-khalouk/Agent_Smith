@@ -68,9 +68,10 @@ class Mcps():
     
     def shutdown_image(self, url: str):
         try:
-            response = requests.get(
+            response = requests.post(
                 f"{url}shutdown",
                 headers={"Authorization": "Bearer "},
+                json={},
                 timeout=60,
             )
         except Exception as e:

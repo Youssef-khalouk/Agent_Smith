@@ -38,7 +38,7 @@ def debug_failing_test(error: str) -> str:
 
 def run_mcp(connection_type: str) -> None:
     if connection_type == "http":
-        mcp.run(transport="streamable-http")
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
     elif connection_type == "stdio":
         mcp.run(transport="stdio")
     else:
