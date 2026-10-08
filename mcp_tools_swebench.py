@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse
 import uvicorn
 import os
 import sys
+import docker
 from tools_common.workspace import DockerWorkspace, LocalWorkspace
 from tools_common.filesystem import (
     read_file as read_file_impl,
@@ -31,8 +32,7 @@ MAX_CHARACTERS = 3000
 MCP = MCPServer("MCP-SERVER")
 last_activity_time = time.time()
 activity_lock = threading.Lock()
-
-
+client = docker.from_env()
 def note_activity() -> None:
     """Poke the heartbeat timestamp on any agent action."""
     # global means im using the global variable, do not create a new one
@@ -489,6 +489,11 @@ async def setup_endpoint(request):
     """
     # read the package 
     # becomes a Python dictionary assigned to data
+
+    for con in client.containers.list(all=True):
+        if con.name.startswith("agent-smith-"):
+            con.remove(force=True)
+    server_state.set("unconfigured")
     try:
         data = await request.json()
     except Exception:
