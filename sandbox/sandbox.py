@@ -18,7 +18,8 @@ SBX: SandboxConfig = SandboxConfig()
 
 class SandBox():
     def __init__(self, connection_type: str = "http",
-                 url: str = "http://localhost:8000/"):
+                 url: str = "http://localhost:8000/",
+                 model: str = "mcp_tools_swebench.py") -> None:
         self.connection_type: str = connection_type
         self.url: str = url
         self.error: str | None = None
@@ -31,6 +32,7 @@ class SandBox():
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
         ]
+        self.model_stdio: str = model
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
         self.tools: ListToolsResult = None
@@ -40,9 +42,9 @@ class SandBox():
         if self.connection_type == "http":
             self.tools = await self.mcp_client.get_tools_http(self.url)
         elif self.connection_type == "stdio":
-            self.tools = await self.mcp_client.get_tools_stdio()
+            self.tools = await self.mcp_client.get_tools_stdio(self.model_stdio)
         else:
-            raise ValueError("Connection type not allowed. Try: 'http' or 'stdio'")
+            raise ValueError("Connection type not allowedprint('here'). Try: 'http' or 'stdio'")
 
     def get_error(self) -> str:
         return (self.error)
@@ -165,7 +167,8 @@ class SandBox():
              f"--config_file={config_file}",
              f"--functions_keys={self.functions_keys_list}",
              f"--connection_type={self.connection_type}",
-             f"--url={self.url}"],
+             f"--url={self.url}",
+             f"--model={self.model_stdio}"],
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,

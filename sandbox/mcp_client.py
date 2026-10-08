@@ -7,15 +7,6 @@ import requests
 class Mcps():
 
     def __init__(self) -> None:
-        self.server_params: Params = Params(
-            command="uv",
-            args=[
-                "run",
-                "python3",
-                "mcp_tools_swebench.py",
-                "--stdio"
-            ]
-        )
         self.client = None
         self.context = None
 
@@ -26,19 +17,28 @@ class Mcps():
         except Exception as e:
             return (f"MCP server connection failed: {e}")
         return tools
-    
-    async def get_tools_stdio(self) -> str | None:
+
+    async def get_tools_stdio(self, model: str) -> str | None:
         try:
-            self.context = Client(self.server_params)
-            self.client = self.context.__aenter__()
+            server_params: Params = Params(
+                command="uv",
+                args=[
+                    "run",
+                    "python3",
+                    model,
+                    "--stdio"])
+            self.context = Client(server_params)
+            self.client = await self.context.__aenter__()
             tools = await self.client.list_tools()
+
+            await self.close_stdio_connection()
         except Exception as e:
             print(e)
         return tools
 
-    def close_stdio_connection(self) -> str:
+    async def close_stdio_connection(self) -> str:
         if self.context != None:
-            self.context.__aexit__()
+            await self.context.__aexit__(None, None, None)
         else:
             return ("Connection already closed.")
         return ("Connection closed.")
