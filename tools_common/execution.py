@@ -122,6 +122,10 @@ def run_command(workspace: LocalWorkspace, command: str,
     return success_msg
 
 
+def addition(workspace: LocalWorkspace, nbr1: int, nbr2: int) -> str:
+    return f"Result: {nbr1 + nbr2}"
+
+
 def get_patch(workspace: LocalWorkspace) -> str:
     """Generates the git diff patch for all changes made in the workspace.
 
