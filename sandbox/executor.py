@@ -3,7 +3,7 @@ from models import SandboxConfig
 from typing import Dict, List
 from pydantic import BaseModel
 import fire
-from mcp import Client
+from mcp import Client, StdioServerParameters as Params
 import asyncio
 import os
 from sandbox.sandbox import SandBox
@@ -12,9 +12,9 @@ from sandbox.security import configurate_sandbox
 
 
 SBX: SandboxConfig = SandboxConfig()
-
 URL = ""
 CONNECTION_TYPE = "http"
+MODEL_STDIO= "mcp_tools_swebench.py"
 
 
 async def call_mcp_tool(function_name: str, kwargs: dict):
@@ -25,9 +25,23 @@ async def call_mcp_tool(function_name: str, kwargs: dict):
         except Exception as e:
             print (f"MCP server connection failed: {e}")
             exit(1)
-        return result.structured_content["result"]
     else:
-        pass
+        try:
+            server_params = Params(
+                command="uv",
+                args=[
+                "run",
+                "python3",
+                MODEL_STDIO,
+                "--stdio"])
+            context = Client(server_params)
+            client = await context.__aenter__()
+            result = await client.call_tool(function_name, kwargs)
+            await context.__aexit__(None, None, None)
+        except Exception as e:
+            print (f"MCP server connection failed: {e}")
+            exit(1)
+    return result.structured_content["result"]
 
 def execute_tool(function_name: str, functions_keys) -> callable:
     def func(*args, **kwargs):
@@ -68,10 +82,12 @@ def exec_code(code: str,
               config_file: str | None,
               functions_keys: dict[str, list[str]],
               connection_type: str = "http",
-              url: str = "http://localhost:8000/") -> str:
-    global URL, CONNECTION_TYPE
+              url: str = "http://localhost:8000/",
+              model: str = "mcp_tools_swebench.py") -> str:
+    global URL, CONNECTION_TYPE, MODEL_STDIO
     URL = url
     CONNECTION_TYPE = connection_type
+    MODEL_STDIO = model
     configurate_sandbox(config_file, SBX)
     name_space: Dict[str, str] = {
         "sorted": builtins.sorted,
