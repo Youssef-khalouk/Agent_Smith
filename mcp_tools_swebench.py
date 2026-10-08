@@ -1,5 +1,6 @@
 from mcp.server.mcpserver import MCPServer
 import threading
+import time
 import shutil
 import signal
 from contextlib import asynccontextmanager
@@ -28,6 +29,35 @@ from tools_common.code_search import (
 )
 MAX_CHARACTERS = 3000
 MCP = MCPServer("MCP-SERVER")
+last_activity_time = time.time()
+activity_lock = threading.Lock()
+
+
+def note_activity() -> None:
+    """Poke the heartbeat timestamp on any agent action."""
+    # global means im using the global variable, do not create a new one
+    global last_activity_time
+    with activity_lock:
+        last_activity_time = time.time()
+
+
+def watchman_loop() -> None:
+    while server_state.snapshot()["state"] == "ready":
+        time.sleep(30.0)
+        if server_state.snapshot()["state"] != "ready":
+            break
+        with activity_lock:
+            silence = time.time() - last_activity_time
+        if silence > 900.0:
+            stop_event.set()
+            break
+
+
+def start_watchman() -> None:
+    note_activity()
+    threading.Thread(
+        target=watchman_loop, name="activity_watchman", daemon=True
+    ).start()
 
 
 class WorkspaceHolder:
@@ -100,6 +130,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             "Error:" that describes the problem and which tool to call
             next.
         """
+        note_activity()
         # Translate the schema-friendly None into the implementation's
         # -1 sentinel meaning "read to end of file".
         if holder.workspace is None:
@@ -132,6 +163,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             surrounding context, or an error message explaining the
             failure and how to recover.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -158,6 +190,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             The matching entries, one per line, possibly with a
             pagination hint — or an error message.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -185,6 +218,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             The command's output with its exit code, or a timeout
             report including partial output.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -204,6 +238,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             message if no changes are detected (edit files before
             submitting).
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -232,6 +267,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             Matching lines in the standard format with a total count,
             or a "no matches" / "invalid regex" error message.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -256,6 +292,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             The definition lines found, or a "no matches" message
             suggesting search_code for a broader search.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -286,6 +323,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
             All usage lines across the repository (excluding the
             definition line), or an error message.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -307,6 +345,7 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         Returns:
             The test run output, showing which tests pass or fail.
         """
+        note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
                     "Send POST /setup and wait for /ready to report 'ready'.")
@@ -352,6 +391,7 @@ def task_context_resource() -> str:
     instance_id = holder.task_context["instance_id"]
     hints = holder.task_context["hints"]
     return "\n".join([problem, instance_id, hints])
+
 
 @MCP.prompt()
 def fix_issue() -> str:
@@ -417,6 +457,7 @@ def prepare_workspace(
                 "hints": hints
             }
             state.set("ready")
+            start_watchman()
             # his line freezes the background thread right there.
             # stop_event is never set to green (stop_event.set()), the
             # thread pauses forever inside the with block.
@@ -490,6 +531,11 @@ async def ready_endpoint(request):
 
 
 async def shutdown_endpoint(request):
+    snapshot = server_state.snapshot()
+    # only turn off the switch if a thread is actually waiting!
+    if snapshot["state"] != "ready":
+        return JSONResponse({"state": snapshot["state"],
+                             "note": "no active task"})
     stop_event.set()
     return JSONResponse({"status": "task ended - container removed"})
 
