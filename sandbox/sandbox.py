@@ -128,8 +128,7 @@ class SandBox():
             return
 
     def shotdown_image(self, image: DockerImage | None = None) -> None:
-        # result = self.mcp_client.shutdown_image(self.url)
-        pass
+        result = self.mcp_client.shutdown_image(self.url)
 
     def parse_mcp_tools(self):
         try:

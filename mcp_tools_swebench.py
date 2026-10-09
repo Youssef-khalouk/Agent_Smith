@@ -503,13 +503,15 @@ async def setup_endpoint(request):
             {"error": f"missing fields: {', '.join(missing_fields)}"},
             status_code=400,
         )
-    if server_state.snapshot()["state"] == "ready":
+    if server_state.snapshot()["state"] == "failed":
+        server_state.set("unconfigured")
+    elif server_state.snapshot()["state"] == "ready":
         stop_event.set()
         while server_state.snapshot()["state"] != "unconfigured":
             time.sleep(0.05)
         if server_state.snapshot()["state"] != "unconfigured":
             return JSONResponse(
-                {"error": "already configured or preparing"}, status_code=409)
+                {"error": "already configured"}, status_code=409)
     mount_path = f"/tmp/testbed_{data.get('instance_id')}"
     # daemon so the thread dies once the main process ends
     # this is the thread that will be frozen forever in the with block
