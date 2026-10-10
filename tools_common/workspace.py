@@ -162,8 +162,9 @@ class LocalWorkspace():
         for entry in dir_path.iterdir():
             # if we found what we are looking for
             if fnmatch.fnmatch(entry.name, pattern):
-                # relative_path gives src/main.py instead of just main.py
-                # attaches the parent directory
+                # relative_path gives src/main.py instead of
+                # /home/user/project/src/main.py
+                # attaches only the parent directory
                 relative_path = str(entry.relative_to(self.root_dir))
                 # issue: entry name does not add "/" to the directory
                 # which is needed to indicate that it is a dir not a file
@@ -172,7 +173,6 @@ class LocalWorkspace():
                 else:
                     matched_entries.append(relative_path)
         matched_entries = sorted(matched_entries)
-        # reduced either True or False
         total_count = len(matched_entries)
         matched_entries = matched_entries[offset: offset + 100]
         return (matched_entries, total_count, is_filled)
@@ -242,10 +242,11 @@ class LocalWorkspace():
         # makes searching easier using regex object
         regex_obj = re.compile(pattern)
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
-            # dirpath → the current directory path
-            # dirnames → list of subdirectory names
-            # filenames → list of file names
-            # [:] in place sp we modify the original list of dirs
+            # dirpath → the current directory absolute path from self.root_dir
+            # til the current folder being visited
+            # dirnames → list of subdirectory names inside dirpath
+            # filenames → list of file names (non directories) inside dirpath
+            # [:] in place so we modify the original list of dirs
             dirnames[:] = [d for d in dirnames if d not in ignored_dir]
             for filename in filenames:
                 if not fnmatch.fnmatch(filename, file_pattern):

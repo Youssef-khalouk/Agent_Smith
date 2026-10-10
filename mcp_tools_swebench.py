@@ -503,7 +503,12 @@ async def setup_endpoint(request):
             {"error": f"missing fields: {', '.join(missing_fields)}"},
             status_code=400,
         )
-    if server_state.snapshot()["state"] == "failed":
+    if server_state.snapshot()["state"] == "preparing":
+        return JSONResponse(
+            {"error": "setup already in progress — wait for /ready "
+                      "or restart the server"},
+            status_code=409)
+    elif server_state.snapshot()["state"] == "failed":
         server_state.set("unconfigured")
     elif server_state.snapshot()["state"] == "ready":
         stop_event.set()
@@ -628,11 +633,11 @@ def main() -> None:
     #  → EXPECT {"state": "unconfigured"}
     # curl -X POST http://127.0.0.1:8000/setup \
     #    -H "Content-Type: application/json" \
-    #    -d '{"image_name":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
+    #    -d '{"docker_image":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
     #         "eval_script":"echo hello",
     #         "instance_id":"pydata__xarray-6461",
     #         "problem_statement": "bug in repo, keeps crashing",
-    #         "hints": "focus on search named functions"}'
+    #         "hints_text": "focus on search named functions"}'
     #  → EXPECT 202 {"state": "preparing"}
     # (repeat the POST immediately)
     #  → EXPECT 409
