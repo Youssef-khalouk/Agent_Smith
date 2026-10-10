@@ -182,7 +182,7 @@ def find_references(
         return f"Error: {err}"
     for match in capped_matches:
         relative_path, line_number, line_text = match
-        absolute_path = (workspace.root_dir / relative_path). resolve()
+        absolute_path = (workspace.root_dir / relative_path).resolve()
         formatted_result.append(
             f"{absolute_path}:{line_number} {line_text}")
     if not formatted_result:

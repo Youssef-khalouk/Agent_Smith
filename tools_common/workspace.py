@@ -350,6 +350,14 @@ class LocalWorkspace():
         unwanted_rel_path = unwanted_file_path.relative_to(
             self.root_dir.resolve())
         regex = re.compile(rf"\b{re.escape(name)}\b")
+        # r (Raw string): Tells Python to treat backslashes literally (so \b
+        # means a regex word boundary, not a backspace control character)
+        # f (Formatted string): Allows to inject variables inside curly braces
+        # \b matches a word boundary (the invisible edge between a word
+        # character and a non-word character, like a space, parenthesis, or
+        # punctuation). ex: runner or brunt will be ignored looking for "run"
+        # re.escape() automatically puts a escape slash in front of any
+        # special regex characters so they are treated as literal characters.
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
             dirnames[:] = [d for d in dirnames if d not in ignored_dir]
             for filename in filenames:
