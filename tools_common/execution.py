@@ -4,7 +4,7 @@ from tools_common.workspace import (
 )
 
 CAP_NUMBER = 2000
-TIMEOUT = 10  # got to change it to 60 or 90 later
+TIMEOUT = 90  # got to change it to 60 or 90 later
 
 
 def run_command(workspace: LocalWorkspace, command: str,
@@ -170,4 +170,3 @@ def get_patch(workspace: LocalWorkspace) -> str:
              f"--- patch ---\n\n"
              f"{diff_result['stdout']}")
     return patch
-        

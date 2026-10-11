@@ -72,7 +72,7 @@ class ContainerManager:
             command="sleep infinity",
             detach=True,
             volumes={
-                # "/home/ouchouir/agent"
+                # "e.g. /home/ouchouir/agent"
                 self.host_mount_path: {
                     "bind": "/testbed"
                 }
@@ -101,6 +101,7 @@ class ContainerManager:
         if work_dir == "." or not work_dir:
             work_dir = "/testbed"
         elif not work_dir.startswith("/"):
+            # "e.g. src/utils or tests"
             work_dir = f"/testbed/{work_dir}"
         else:
             work_dir = work_dir
