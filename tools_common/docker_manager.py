@@ -115,7 +115,14 @@ class ContainerManager:
         # Thread-safe FIFO queue implementation using queue.Queue.
         # Handles internal mutex locking and thread synchronization
         # to prevent race conditions.
+        # The worker thread puts its result inside, and the main thread
+        # reads it later.
         result_queue = queue.Queue()
+        # -c: Take the following text and execute it as a terminal command
+        # bash: tell Bash to execute the requested command ('python main.py')
+        # shlex: turns "echo hello world" into 'echo hello world' so
+        # command gets treated as one argument, rather than splitting it
+        # into multiple arguments.
         # Wrap in GNU 'timeout' so stuck commands get killed inside
         # the container and return exit code 124 instead of hanging.
         wrapped_command = (f"timeout --foreground {timeout}s "
@@ -153,8 +160,8 @@ class ContainerManager:
         # It does NOT forcibly stop or kill the child thread when the
         # 60-second timer runs out.
         # !! The child thread continues running container.exec_run(...) in the
-        # background. However, because you set thread.daemon = True, Python
-        # will automatically abandon that stuck child thread later when your
+        # background. However, because i set thread.daemon = True, Python
+        # will automatically abandon that stuck child thread later when the
         # whole script finishes.
         thread.join(timeout=timeout + 2)
         if thread.is_alive():
@@ -220,6 +227,7 @@ class ContainerManager:
             if self.container.status == "running":
                 return  # mid-task call: do nothing, mount is in use
         if self.host_mount_path.exists():
+            # delete a directory and everything inside it
             shutil.rmtree(self.host_mount_path, ignore_errors=True)
         stage_dir = (
             self.host_mount_path.parent / f"tmp_{self.host_mount_path.name}")
@@ -248,7 +256,7 @@ class ContainerManager:
             stderr_text = err.stderr.decode() if err.stderr else str(err)
             raise RuntimeError(
                 f"Docker extraction failed: {stderr_text}") from err
- 
+
 
 # if __name__ == "__main__":
 #     manager = ContainerManager("swebench/sweb.eval.x86_64.sympy_1776_sympy-14711", "/home/ouchouir/agent")
