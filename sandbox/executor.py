@@ -9,6 +9,9 @@ import os
 from sandbox.sandbox import SandBox
 import json
 from sandbox.security import configurate_sandbox
+import sys
+import io
+import contextlib
 
 
 SBX: SandboxConfig = SandboxConfig()
@@ -17,31 +20,22 @@ CONNECTION_TYPE = "http"
 MODEL_STDIO= "mcp_tools_swebench.py"
 
 
-async def call_mcp_tool(function_name: str, kwargs: dict):
-    if CONNECTION_TYPE == "http":
-        try:
-            async with Client(f"{URL}mcp") as client:
-                result = await client.call_tool(function_name, kwargs)
-        except Exception as e:
-            print (f"MCP server connection failed: {e}")
-            exit(1)
-    else:
-        try:
-            server_params = Params(
-                command="uv",
-                args=[
-                "run",
-                "python3",
-                MODEL_STDIO,
-                "--stdio"])
-            context = Client(server_params)
-            client = await context.__aenter__()
-            result = await client.call_tool(function_name, kwargs)
-            await context.__aexit__(None, None, None)
-        except Exception as e:
-            print (f"MCP server connection failed: {e}")
-            exit(1)
-    return result.structured_content["result"]
+def call_mcp_tool(function_name: str, kwargs: dict):
+    request = {
+        "type": "tool_call",
+        "name": function_name,
+        "arguments": kwargs
+    }
+    print(json.dumps(request), flush=True)
+
+    response = json.loads(sys.stdin.readline())
+
+    if not response["ok"]:
+        print (response["error"])
+        exit (1)
+    
+    return (response["result"])
+
 
 def execute_tool(function_name: str, functions_keys) -> callable:
     def func(*args, **kwargs):
@@ -77,13 +71,13 @@ def final_answer(value: str) -> str:
     print ("__FINAL_ANSWER__SANDBOX__\n" + value)
     exit()
 
-def exec_code(code: str,
-              tool_names: List[str],
+def exec_code(tool_names: List[str],
               config_file: str | None,
               functions_keys: dict[str, list[str]],
               connection_type: str = "http",
               url: str = "http://localhost:8000/",
               model: str = "mcp_tools_swebench.py") -> str:
+    code: str = input()
     global URL, CONNECTION_TYPE, MODEL_STDIO
     URL = url
     CONNECTION_TYPE = connection_type
@@ -115,7 +109,31 @@ def exec_code(code: str,
     for tool in tool_names:
         name_space[tool] = execute_tool(tool, functions_keys)
 
-    exec(code, {"__builtins__": name_space})
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            exec(code, {"__builtins__": name_space})
+    except Exception as e:
+        stderr.write(f"{type(e).__name__}: {e}")
+
+    output = {
+        "stdout": "",
+        "stderr": "",
+        "status": "Done"
+    }
+
+    if stdout.getvalue().strip():
+        output["stdout"] = stdout.getvalue()
+
+    if stderr.getvalue().strip():
+        output["stderr"] = stderr.getvalue()
+
+    output = json.dumps(output)
+
+    print (output)
+
 
 def main() -> None:
     fire.Fire({
