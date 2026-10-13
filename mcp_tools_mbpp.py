@@ -21,9 +21,9 @@ def run_tests(code: str) -> str:
 
     output = ""
     if stdout.getvalue().strip():
-        output += f"STDOUT: {stdout.getvalue()}"
+        output += f"stdout: {stdout.getvalue()}"
     if stderr.getvalue().strip():
-        output += f"\nSTDERR: {stderr.getvalue()}"
+        output += f"\stderr: {stderr.getvalue()}"
     return output
 
 @mcp.resource("task://current")

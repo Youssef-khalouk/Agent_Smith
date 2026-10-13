@@ -36,15 +36,16 @@ def agent_swe_bench(task_file: str, output: str, model_name: str, provider_url: 
 
         api_keys = str(os.getenv("OPENROUTER_API_KEYS")).split(",")
         
+        docker_image = DockerImage.model_validate(swe_bench_task.model_dump())
+        
         agent = Agent(  api_url=provider_url,
                         model_name=model_name,
                         api_keys=api_keys,
                         max_iterations=30,
                         max_input_tokens=300000,
                         max_output_tokens=10000,
-                        timeout_seconds=900)
-
-        agent.set_docker_image(DockerImage.model_validate(swe_bench_task.model_dump()))
+                        timeout_seconds=900,
+                        docker_image=docker_image)
 
         solution: SolutionOutput = agent.run(swe_bench_task)
 
@@ -55,6 +56,7 @@ def agent_swe_bench(task_file: str, output: str, model_name: str, provider_url: 
             file.write(solution.model_dump_json(indent=4))
         
         print_conversation(agent.messages) # this is for debugg stuf remove later.
+        agent.close()
 
     except Exception as e:
         print(f"Error: {e}")

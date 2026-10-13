@@ -18,7 +18,7 @@ def interactive(sandbox: SandBox) -> None:
 
         if code.strip() == "exit":
             break
-        print (sandbox.exec_code(code))
+        print(sandbox.exec_code(code))
 
 
 def main() -> None:

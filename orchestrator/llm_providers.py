@@ -48,15 +48,15 @@ class LLMProvider:
 
     def _rotate_key(self):
         self._key_index = (self._key_index + 1) % len(self.api_keys)
-        if self._key_index == 0:
-            print("\nall the keys exhausted. wait for 30 second and try again...\n")
-            sleep(30)
+        # if self._key_index == 0:
+            # print("\nall the keys exhausted. wait for 30 second and try again...\n")
+            # sleep(30)
 
     def generate(self, messages: list[dict], stop_sequences: list[str] = []) -> LLMResponse:
         stop_seq = {"stop": stop_sequences} if stop_sequences else {}
         last_error = None
-        # for attempt in range(len(self.api_keys)):
-        while True:
+        for attempt in range(len(self.api_keys)):
+        # while True:
             start = time.time()
             try:
                 response = requests.post(
@@ -80,7 +80,7 @@ class LLMProvider:
                     input_tokens=data["usage"]["prompt_tokens"],
                     output_tokens=data["usage"]["completion_tokens"],
                     latency_ms=latency_ms,
-                    retries=self._key_index,
+                    retries=attempt,
                 )
             except (RateLimitError, requests.RequestException) as e:
                 if last_error == None:

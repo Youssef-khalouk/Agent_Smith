@@ -53,6 +53,7 @@ def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
             file.write(solution.model_dump_json(indent=4))
         
         print_conversation(agent.messages)
+        agent.close()
 
     except Exception as e:
         print(f"Error: {e}")

@@ -4,7 +4,6 @@ from typing import Dict, List
 from pydantic import BaseModel
 import fire
 from mcp import Client, StdioServerParameters as Params
-import asyncio
 import os
 from sandbox.sandbox import SandBox
 import json
@@ -22,9 +21,6 @@ class Tool_Fieled(Exception):
 
 
 SBX: SandboxConfig = SandboxConfig()
-URL = ""
-CONNECTION_TYPE = "http"
-MODEL_STDIO= "mcp_tools_swebench.py"
 
 
 def call_mcp_tool(function_name: str, kwargs: dict):
@@ -36,17 +32,12 @@ def call_mcp_tool(function_name: str, kwargs: dict):
 
     print(json.dumps(request), file=MAIN_STDOUT, flush=True)
 
-    
-    response_line = json.loads(MAIN_STDIN.readline())
-    
+    line = MAIN_STDIN.readline()
+    response_line = json.loads(line)
+
     if not response_line["ok"]:
-        result = {
-                "type": "error",
-                "error": response_line["error"]
-            }
-        print(json.dumps(result), file=MAIN_STDOUT, flush=True)
         raise Tool_Fieled(response_line["error"])
-    
+
     return (response_line["result"])
 
 
@@ -58,7 +49,7 @@ def execute_tool(function_name: str, functions_keys) -> callable:
                 kwargs[key] = args[i]
             else:
                 break
-        return asyncio.run(call_mcp_tool(function_name, kwargs))
+        return call_mcp_tool(function_name, kwargs)
     return func
 
 
@@ -82,22 +73,14 @@ def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 def final_answer(value: str) -> str:
     output = {
-            "type": "final_answer",
-            "value": value
-        }
-    print (json.dumps(output))
-    exit()
+        "type": "final_answer",
+        "value": value
+    }
+    print(json.dumps(output), file=MAIN_STDOUT, flush=True)
+    return "final answer is called, done."
 
-def exec_code(tool_names: List[str],
-              config_file: str | None,
-              functions_keys: dict[str, list[str]],
-              connection_type: str = "http",
-              url: str = "http://localhost:8000/",
-              model: str = "mcp_tools_swebench.py") -> str:
-    global URL, CONNECTION_TYPE, MODEL_STDIO
-    URL = url
-    CONNECTION_TYPE = connection_type
-    MODEL_STDIO = model
+def exec_code(tool_names: List[str], config_file: str | None, functions_keys: dict[str, list[str]]) -> str:
+
     configurate_sandbox(config_file, SBX)
     name_space = {
         "sorted": builtins.sorted,
@@ -125,7 +108,6 @@ def exec_code(tool_names: List[str],
     for tool in tool_names:
         name_space[tool] = execute_tool(tool, functions_keys)
 
-
     while True:
         code: str = input()
 
@@ -136,30 +118,22 @@ def exec_code(tool_names: List[str],
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 exec(code, {"__builtins__": name_space})
         except Tool_Fieled as e:
+            result = {"type": "error", "error": str(e)}
+            print(json.dumps(result), flush=True)
             continue
         except Exception as e:
-            stderr.write(f"{type(e).__name__}: {e}")
+            stderr.write(f"{type(e).__name__}: {str(e)}")
 
         output = {
             "type": "code_result",
-            "stdout": "",
-            "stderr": "",
+            "stdout": stdout.getvalue().strip(),
+            "stderr": stderr.getvalue().strip(),
         }
-
-        if stdout.getvalue().strip():
-            output["stdout"] = stdout.getvalue()
-        if stderr.getvalue().strip():
-            output["stderr"] = stderr.getvalue()
-        # with open("test.txt", "w") as file:
-            # file.write(json.dumps(output, indent=4))
-
-        print(json.dumps(output))
+        print(json.dumps(output), flush=True)
 
 
 def main() -> None:
-    fire.Fire({
-        "exec": exec_code
-    })
+    fire.Fire({"exec": exec_code})
 
 
 if __name__ == "__main__":
