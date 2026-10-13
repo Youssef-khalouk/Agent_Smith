@@ -6,7 +6,6 @@ import contextlib
 
 mcp = MCPServer()
 
-
 @mcp.tool()
 def run_tests(code: str) -> str:
     """Run the code as Python code and return stdout/stderr."""

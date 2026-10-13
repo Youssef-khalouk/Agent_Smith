@@ -29,7 +29,7 @@ class SandBox():
         self.is_ok: bool = True
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
-        self.mcp_client: Mcp_client = None
+        self.mcp_client: Mcp_client = Mcp_client()
         self.tools_meta_data: List[str] = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
@@ -40,16 +40,17 @@ class SandBox():
         self.functions_keys_list: Dict[str, List[str]] = {}
         self.tools: ListToolsResult = None
         self.server_params: Params = None
-        self.parse_mcp_tools()
         self.executor: subprocess = None
+        self.connect_client()
+        self.parse_mcp_tools()
         self.init_executor()
-        self.init_client()
 
-    def init_client(self) -> None:
+    def connect_client(self) -> None:
         if self.connection_type == "stdio":
-            self.mcp_client = Mcp_client(mcp_file=self.model_stdio)
-            return
-        self.mcp_client = Mcp_client(url=self.url)
+            self.mcp_client.connect_stdio(self.model_stdio)
+        else:
+            self.mcp_client.connect_http(self.url)
+
 
     def init_executor(self) -> None:
         self.executor = subprocess.Popen(
@@ -187,46 +188,55 @@ class SandBox():
 
     def exec_code(self, code: str) -> str:
         self.executor.stdin.write(f"{code}\n")
-        self.executor.flush()
+        self.executor.stdin.flush()
         configurate_sandbox(self.config_file, SBX)
-        output: Dict[str, Any]
         result: str = ""
-        response: Dict[str, Any] = {
-            "ok": True,
-            "result": "",
-            "error": ""
-        }
+        
         while True:
-            line = self.mcp_client._run_async(asyncio.to_thread(self.executor.stdout.readline()))
-
-            line = json.loads(line)
-            if "status" in line and line["status"] == "Done":
-                output = line
-                break
-
+            response: Dict[str, Any] = {
+                "ok": True,
+                "result": "",
+                "error": ""
+            }
+            line = self.executor.stdout.readline()
             try:
-                tool_execution = self.mcp_client.call_tool(line["name"], line["arguments"])
-                response["result"] = tool_execution.structured_content["result"]
-                response = json.dumps(response)
+                line = json.loads(line)
             except Exception as e:
                 self.is_ok = False
-                self.error = e
-                response["ok"] = False
-                response["error"] = e
+                self.error = f"unknown excutor result: {line}"
+                return
 
-            self.executor.stdin.write(f"{response}\n")
-            self.executor.flush()
-            
+            if line["type"] == "code_result":
+                if line["stdout"]:
+                    result += f"STDOUT: {line['stdout']}\n"
+                if line["stderr"]:
+                    result += f"STDERR: {line['stderr']}"
+                    self.is_ok = False
+                    self.error = line["stderr"]
+                break
+            elif line["type"] == "final_answer":
+                self._final_answer(line["value"])
+                return
+            elif line["type"] == "tool_call":
+                try:
+                    response["result"] = self.mcp_client.call_tool(line["name"], line["arguments"])
+                    response = json.dumps(response)
+                except Exception as e:
+                    self.is_ok = False
+                    self.error = e
+                    response["ok"] = False
+                    response["error"] = e
 
-        if output["stdout"].startswith("__FINAL_ANSWER__SANDBOX__\n"):
-            self._final_answer(stdout[26:])
-
-        if output["stdout"]:
-            result += f"STDOUT: {output['stdout']}\n"
-        if output["stderr"]:
-            result += f"STDERR: {output['stderr']}"
-            self.is_ok = False
-            self.error = output["stderr"]
+                self.executor.stdin.write(f"{json.dumps(response)}\n")
+                self.executor.stdin.flush()
+            elif line["type"] == "error":
+                self.is_ok = False
+                self.error = line["error"]
+                return
+            else:
+                self.is_ok = False
+                self.error = f"unknowen type result: {line}"
+                return 
 
         return result
 

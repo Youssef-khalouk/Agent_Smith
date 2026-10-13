@@ -1,6 +1,6 @@
 import sys
 from .sandbox import SandBox
-from .mcp_client import Mcps
+from .mcp_client import Mcp_client
 import subprocess
 import time
 
@@ -18,7 +18,7 @@ def interactive(sandbox: SandBox) -> None:
 
         if code.strip() == "exit":
             break
-        print (sandbox.exec_code(code, sandbox.config_file))
+        print (sandbox.exec_code(code))
 
 
 def main() -> None:

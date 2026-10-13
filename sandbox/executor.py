@@ -14,6 +14,9 @@ import io
 import contextlib
 
 
+MAIN_STDOUT = sys.stdout
+MAIN_STDIN = sys.stdin
+
 class Tool_Fieled(Exception):
     ...
 
@@ -30,14 +33,21 @@ def call_mcp_tool(function_name: str, kwargs: dict):
         "name": function_name,
         "arguments": kwargs
     }
-    print(json.dumps(request), flush=True)
 
-    response = json.loads(sys.stdin.readline())
+    print(json.dumps(request), file=MAIN_STDOUT, flush=True)
 
-    if not response["ok"]:
-        raise Tool_Fieled(response["error"])
     
-    return (response["result"])
+    response_line = json.loads(MAIN_STDIN.readline())
+    
+    if not response_line["ok"]:
+        result = {
+                "type": "error",
+                "error": response_line["error"]
+            }
+        print(json.dumps(result), file=MAIN_STDOUT, flush=True)
+        raise Tool_Fieled(response_line["error"])
+    
+    return (response_line["result"])
 
 
 def execute_tool(function_name: str, functions_keys) -> callable:
@@ -89,7 +99,7 @@ def exec_code(tool_names: List[str],
     CONNECTION_TYPE = connection_type
     MODEL_STDIO = model
     configurate_sandbox(config_file, SBX)
-    name_space: Dict[str, str] = {
+    name_space = {
         "sorted": builtins.sorted,
         "print": builtins.print,
         "int": builtins.int,
@@ -118,6 +128,7 @@ def exec_code(tool_names: List[str],
 
     while True:
         code: str = input()
+
         stdout = io.StringIO()
         stderr = io.StringIO()
 
@@ -125,11 +136,6 @@ def exec_code(tool_names: List[str],
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 exec(code, {"__builtins__": name_space})
         except Tool_Fieled as e:
-            result = {
-                "type": "error",
-                "error": e
-            }
-            print(json.dumps(result))
             continue
         except Exception as e:
             stderr.write(f"{type(e).__name__}: {e}")
@@ -144,8 +150,10 @@ def exec_code(tool_names: List[str],
             output["stdout"] = stdout.getvalue()
         if stderr.getvalue().strip():
             output["stderr"] = stderr.getvalue()
+        # with open("test.txt", "w") as file:
+            # file.write(json.dumps(output, indent=4))
 
-        print (json.dumps(output))  
+        print(json.dumps(output))
 
 
 def main() -> None:
@@ -159,18 +167,3 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print(e)
-
-
-"""
-mcp_tool()
-
-print("reda")
-
-"""
-
-
-"""
-mcp_tool()
-
-print()
-"""
