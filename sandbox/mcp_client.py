@@ -18,15 +18,17 @@ class Mcps():
             return (f"MCP server connection failed: {e}")
         return tools
 
-    async def get_tools_stdio(self, model: str) -> str | None:
+    async def get_tools_stdio(self, model: str, server_params: Params) -> str | None:
         try:
-            server_params: Params = Params(
-                command="uv",
-                args=[
-                    "run",
-                    "python3",
-                    model,
-                    "--stdio"])
+            # server_params: Params = Params(
+            #     command="uv",
+            #     args=[
+            #         "run",
+            #         "python3",
+            #         model,
+            #         "--stdio"])
+            # print(type(server_params))
+            # print(server_params)
             self.context = Client(server_params)
             self.client = await self.context.__aenter__()
             tools = await self.client.list_tools()

@@ -11,6 +11,7 @@ import asyncio
 import json
 from sandbox.security import configurate_sandbox
 from time import sleep
+from mcp import StdioServerParameters as Params
 
 
 SBX: SandboxConfig = SandboxConfig()
@@ -19,14 +20,16 @@ SBX: SandboxConfig = SandboxConfig()
 class SandBox():
     def __init__(self, connection_type: str = "http",
                  url: str = "http://localhost:8000/",
-                 model: str = "mcp_tools_swebench.py") -> None:
+                 model: str = "mcp_tools_swebench.py",
+                 config_file: str | None = None) -> None:
+        self.config_file = config_file
         self.connection_type: str = connection_type
         self.url: str = url
         self.error: str | None = None
         self.is_ok: bool = True
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
-        self.mcp_client: Mcps = Mcps()
+        self.mcp_client: Mcps = None
         self.tools_meta_data: List[str] = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
@@ -36,7 +39,40 @@ class SandBox():
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
         self.tools: ListToolsResult = None
+        self.server_params: Params = None
         self.parse_mcp_tools()
+        self.executor: subprocess = None
+        self.init_executor()
+        self.init_client()
+
+    def init_client(self) -> None:
+        if self.connection_type == "stdio":
+            self.mcp_client = Mcps(connection_type="stdio", mcp_file=self.model_stdio)
+            return
+        self.mcp_client = Mcps(connection_type="http", url=self.url)
+
+    def init_executor(self) -> None:
+        self.executor = subprocess.Popen(
+            ["unshare", "--user", 
+             "--map-root-user", "--net", "--",
+             "uv", "run", "python3", "-m",
+             "sandbox.executor", "exec",
+             f"--tool_names={self.tool_names}",
+             f"--config_file={self.config_file}",
+             f"--functions_keys={self.functions_keys_list}",
+             f"--connection_type={self.connection_type}",
+             f"--url={self.url}",
+             f"--model={self.model_stdio}"],
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        resource.prlimit(
+            self.executor.pid, resource.RLIMIT_DATA,
+            [SBX.max_memory_mb * 1024 * 1024,
+            SBX.max_memory_mb * 1024 * 1024]
+        )
 
     async def check_connection_type(self) -> None:
         if self.connection_type == "http":
@@ -157,50 +193,51 @@ class SandBox():
         self.final_answer_called = True
         self.final_answer_value = value
 
-    def create_environment(self, code: str,
-                           config_file: str | None) -> str:
-        child_process = subprocess.Popen(
-            ["uv", "run", "python3", "-m",
-             "sandbox.executor", "exec",
-             f"--code={code}",
-             f"--tool_names={self.tool_names}",
-             f"--config_file={config_file}",
-             f"--functions_keys={self.functions_keys_list}",
-             f"--connection_type={self.connection_type}",
-             f"--url={self.url}",
-             f"--model={self.model_stdio}"],
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        output: str = ""
-        resource.prlimit(
-            child_process.pid, resource.RLIMIT_DATA,
-            [SBX.max_memory_mb * 1024 * 1024,
-            SBX.max_memory_mb * 1024 * 1024]
-        )
-        stdout, stderr = child_process.communicate(
-            timeout=SBX.max_execution_time_seconds)
-        if stdout.startswith("__FINAL_ANSWER__SANDBOX__\n"):
+    async def exec_code(self, code: str) -> str:
+        self.executor.stdin.write(f"{code}\n")
+        self.executor.flush()
+        configurate_sandbox(self.config_file, SBX)
+        output: Dict[str, Any]
+        result: str = ""
+        response: Dict[str, Any] = {
+            "ok": True,
+            "result": "",
+            "error": ""
+        }
+        while True:
+            line = await asyncio.to_thread(self.executor.stdout.readline())
+
+            line = json.loads(line)
+            if "status" in line and line["status"] == "Done":
+                output = line
+                break
+
+            try:
+                tool_execution = await self.mcp_client.call_tool(line["name"], line["arguments"])
+            except Exception as e:
+                self.is_ok = False
+                self.error = e
+                response["ok"] = False
+                response["error"] = e
+                return
+            response["result"] = tool_execution.structured_content["result"]
+            response = json.dumps(response)
+
+            self.executor.stdin.write(f"{response}\n")
+            self.executor.flush()
+            
+
+        if output["stdout"].startswith("__FINAL_ANSWER__SANDBOX__\n"):
             self._final_answer(stdout[26:])
-        
-        if stdout != "":
-            output += f"Stdout: {stdout}"
-        
-        if stderr.startswith("MCP server connection failed:"):
-            self.error = stderr
+
+        if output["stdout"]:
+            result += f"STDOUT: {output['stdout']}\n"
+        if output["stderr"]:
+            result += f"STDERR: {output['stderr']}"
             self.is_ok = False
+            self.error = output["stderr"]
 
-        if stderr != "":
-            output += f"Stderr: {stderr}"
-
-        return output
-
-    def exec_code(self, code: str, config_file: str | None = None) -> str:
-        result: str
-        configurate_sandbox(config_file, SBX)
-        result = self.create_environment(code, config_file)
         return result
+
 
 
