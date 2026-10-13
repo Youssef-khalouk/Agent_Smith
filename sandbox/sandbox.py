@@ -4,7 +4,7 @@ import subprocess
 from typing import List, Dict, Any
 import resource
 from models import SandboxConfig, DockerImage
-from sandbox.mcp_client import Mcps
+from sandbox.mcp_client import Mcp_client
 from mcp_types._types import ListToolsResult
 import fire
 import asyncio
@@ -29,7 +29,7 @@ class SandBox():
         self.is_ok: bool = True
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
-        self.mcp_client: Mcps = None
+        self.mcp_client: Mcp_client = None
         self.tools_meta_data: List[str] = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
@@ -47,9 +47,9 @@ class SandBox():
 
     def init_client(self) -> None:
         if self.connection_type == "stdio":
-            self.mcp_client = Mcps(connection_type="stdio", mcp_file=self.model_stdio)
+            self.mcp_client = Mcp_client(mcp_file=self.model_stdio)
             return
-        self.mcp_client = Mcps(connection_type="http", url=self.url)
+        self.mcp_client = Mcp_client(url=self.url)
 
     def init_executor(self) -> None:
         self.executor = subprocess.Popen(
@@ -73,14 +73,6 @@ class SandBox():
             [SBX.max_memory_mb * 1024 * 1024,
             SBX.max_memory_mb * 1024 * 1024]
         )
-
-    async def check_connection_type(self) -> None:
-        if self.connection_type == "http":
-            self.tools = await self.mcp_client.get_tools_http(self.url)
-        elif self.connection_type == "stdio":
-            self.tools = await self.mcp_client.get_tools_stdio(self.model_stdio)
-        else:
-            raise ValueError("Connection type not allowedprint('here'). Try: 'http' or 'stdio'")
 
     def get_error(self) -> str:
         return (self.error)
@@ -168,7 +160,7 @@ class SandBox():
 
     def parse_mcp_tools(self):
         try:
-            asyncio.run(self.check_connection_type())
+            self.tools = self.mcp_client.get_tools()
         except Exception as e:
             self.error = e
             self.is_ok = False
@@ -193,7 +185,7 @@ class SandBox():
         self.final_answer_called = True
         self.final_answer_value = value
 
-    async def exec_code(self, code: str) -> str:
+    def exec_code(self, code: str) -> str:
         self.executor.stdin.write(f"{code}\n")
         self.executor.flush()
         configurate_sandbox(self.config_file, SBX)
@@ -205,7 +197,7 @@ class SandBox():
             "error": ""
         }
         while True:
-            line = await asyncio.to_thread(self.executor.stdout.readline())
+            line = self.mcp_client._run_async(asyncio.to_thread(self.executor.stdout.readline()))
 
             line = json.loads(line)
             if "status" in line and line["status"] == "Done":
@@ -213,15 +205,14 @@ class SandBox():
                 break
 
             try:
-                tool_execution = await self.mcp_client.call_tool(line["name"], line["arguments"])
+                tool_execution = self.mcp_client.call_tool(line["name"], line["arguments"])
+                response["result"] = tool_execution.structured_content["result"]
+                response = json.dumps(response)
             except Exception as e:
                 self.is_ok = False
                 self.error = e
                 response["ok"] = False
                 response["error"] = e
-                return
-            response["result"] = tool_execution.structured_content["result"]
-            response = json.dumps(response)
 
             self.executor.stdin.write(f"{response}\n")
             self.executor.flush()

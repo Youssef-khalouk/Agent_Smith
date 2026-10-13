@@ -14,6 +14,10 @@ import io
 import contextlib
 
 
+class Tool_Fieled(Exception):
+    ...
+
+
 SBX: SandboxConfig = SandboxConfig()
 URL = ""
 CONNECTION_TYPE = "http"
@@ -31,8 +35,7 @@ def call_mcp_tool(function_name: str, kwargs: dict):
     response = json.loads(sys.stdin.readline())
 
     if not response["ok"]:
-        print (response["error"])
-        exit (1)
+        raise Tool_Fieled(response["error"])
     
     return (response["result"])
 
@@ -68,7 +71,11 @@ def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 
 def final_answer(value: str) -> str:
-    print ("__FINAL_ANSWER__SANDBOX__\n" + value)
+    output = {
+            "type": "final_answer",
+            "value": value
+        }
+    print (json.dumps(output))
     exit()
 
 def exec_code(tool_names: List[str],
@@ -77,7 +84,6 @@ def exec_code(tool_names: List[str],
               connection_type: str = "http",
               url: str = "http://localhost:8000/",
               model: str = "mcp_tools_swebench.py") -> str:
-    code: str = input()
     global URL, CONNECTION_TYPE, MODEL_STDIO
     URL = url
     CONNECTION_TYPE = connection_type
@@ -109,30 +115,37 @@ def exec_code(tool_names: List[str],
     for tool in tool_names:
         name_space[tool] = execute_tool(tool, functions_keys)
 
-    stdout = io.StringIO()
-    stderr = io.StringIO()
 
-    try:
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            exec(code, {"__builtins__": name_space})
-    except Exception as e:
-        stderr.write(f"{type(e).__name__}: {e}")
+    while True:
+        code: str = input()
+        stdout = io.StringIO()
+        stderr = io.StringIO()
 
-    output = {
-        "stdout": "",
-        "stderr": "",
-        "status": "Done"
-    }
+        try:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exec(code, {"__builtins__": name_space})
+        except Tool_Fieled as e:
+            result = {
+                "type": "error",
+                "error": e
+            }
+            print(json.dumps(result))
+            continue
+        except Exception as e:
+            stderr.write(f"{type(e).__name__}: {e}")
 
-    if stdout.getvalue().strip():
-        output["stdout"] = stdout.getvalue()
+        output = {
+            "type": "code_result",
+            "stdout": "",
+            "stderr": "",
+        }
 
-    if stderr.getvalue().strip():
-        output["stderr"] = stderr.getvalue()
+        if stdout.getvalue().strip():
+            output["stdout"] = stdout.getvalue()
+        if stderr.getvalue().strip():
+            output["stderr"] = stderr.getvalue()
 
-    output = json.dumps(output)
-
-    print (output)
+        print (json.dumps(output))  
 
 
 def main() -> None:
@@ -146,3 +159,18 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print(e)
+
+
+"""
+mcp_tool()
+
+print("reda")
+
+"""
+
+
+"""
+mcp_tool()
+
+print()
+"""
