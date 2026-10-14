@@ -11,6 +11,7 @@ from sandbox.security import configurate_sandbox
 import sys
 import io
 import contextlib
+from path import Path
 
 
 MAIN_STDOUT = sys.stdout
@@ -29,15 +30,11 @@ def call_mcp_tool(function_name: str, kwargs: dict):
         "name": function_name,
         "arguments": kwargs
     }
-
     print(json.dumps(request), file=MAIN_STDOUT, flush=True)
-
     line = MAIN_STDIN.readline()
     response_line = json.loads(line)
-
     if not response_line["ok"]:
         raise Tool_Fieled(response_line["error"])
-
     return (response_line["result"])
 
 
@@ -53,13 +50,16 @@ def execute_tool(function_name: str, functions_keys) -> callable:
     return func
 
 
-def safe_open(file, flag):
-    real_open = builtins.open
-    path = os.path.abspath(os.fspath(file))
-    for direct in SBX.allowed_directories:
-        if direct in path:
-            return (real_open(file, flag))
-    raise ValueError("Access denied")
+def safe_open(file, mode="r", *args, **kwargs):
+    path = Path(file).resolve()
+    for directory in SBX.allowed_directories:
+        allowed = Path(directory).resolve()
+        try:
+            path.relative_to(allowed)
+            return builtins.open(path, mode, *args, **kwargs)
+        except ValueError:
+            continue
+    raise PermissionError(f"Access denied: {path}")
 
 
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
