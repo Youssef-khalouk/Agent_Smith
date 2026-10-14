@@ -11,7 +11,7 @@ from sandbox.security import configurate_sandbox
 import sys
 import io
 import contextlib
-from path import Path
+from pathlib import Path
 
 
 MAIN_STDOUT = sys.stdout
