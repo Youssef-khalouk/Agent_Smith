@@ -50,12 +50,6 @@ def main() -> None:
             try:
                 command_line: List[str] = sys.argv[2].split()
                 print("Interactive sandbox launched successfully")
-                sub_proc = subprocess.run(
-                    ["python3", command_line[1]],
-                    stdout=subprocess.PIPE,
-                    stdin=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
                 sbx = SandBox(connection_type="stdio", model=command_line[1], config_file=sys.argv[3])
                 interactive(sbx)
             except IndexError as e:
