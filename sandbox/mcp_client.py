@@ -141,7 +141,7 @@ class Mcp_client():
         return result.structured_content["result"]
 
     def close(self) -> None:
-        if self.docker_image:
+        if self.docker_image and self.connection_type == "http":
             self._shutdown_image()
         try:
             # 1. Close the MCP connection first
@@ -153,19 +153,14 @@ class Mcp_client():
                 self.client = None
 
         finally:
-            try:
-                # 2. Shut down the Docker image
-                if self.docker_image:
-                    self._shutdown_image()
-            finally:
-                # 3. Stop the event loop
-                if self.loop.is_running():
-                    self.loop.call_soon_threadsafe(self.loop.stop)
+            # 3. Stop the event loop
+            if self.loop.is_running():
+                self.loop.call_soon_threadsafe(self.loop.stop)
 
-                # 4. Wait for the background thread to finish
-                if self.thread.is_alive():
-                    self.thread.join(timeout=5)
+            # 4. Wait for the background thread to finish
+            if self.thread.is_alive():
+                self.thread.join(timeout=5)
 
-                # 5. Close the event loop
-                if not self.loop.is_running() and not self.loop.is_closed():
-                    self.loop.close()
+            # 5. Close the event loop
+            if not self.loop.is_running() and not self.loop.is_closed():
+                self.loop.close()

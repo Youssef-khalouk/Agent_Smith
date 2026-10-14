@@ -48,20 +48,6 @@ class SandBox():
         self.parse_mcp_tools()
         self._init_executor()
 
-    def __del__(self) -> None:
-        if self.executor is None:
-            return
-        if self.executor.poll() is not None:
-            return
-        try:
-            os.killpg(self.executor.pid, signal.SIGTERM)
-            self.executor.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            os.killpg(self.executor.pid, signal.SIGKILL)
-            self.executor.wait()
-        except ProcessLookupError:
-            pass
-
     def _connect_client(self) -> None:
         if self.connection_type == "stdio":
             self.mcp_client.connect_stdio(self.model_stdio)
@@ -226,4 +212,16 @@ class SandBox():
 
     def close(self) -> None:
         self.mcp_client.close()
+        if self.executor is None:
+            return
+        if self.executor.poll() is not None:
+            return
+        try:
+            os.killpg(self.executor.pid, signal.SIGTERM)
+            self.executor.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(self.executor.pid, signal.SIGKILL)
+            self.executor.wait()
+        except ProcessLookupError:
+            pass
 

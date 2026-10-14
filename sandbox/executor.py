@@ -64,7 +64,6 @@ def safe_open(file, mode="r", *args, **kwargs):
 
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     real_import = builtins.__import__
-    sbx: SandboxConfig = SandboxConfig()
     root = name.split(".")[0]
     if root not in SBX.authorized_imports:
         raise ValueError("Import not allowed")

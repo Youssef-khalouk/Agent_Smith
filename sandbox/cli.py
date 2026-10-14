@@ -26,7 +26,7 @@ def main() -> None:
     try:
         if args == 1:
             subproc = subprocess.Popen(
-                ["uv", "run", "python3", "mcp_tools_swebench.py", '--http'],
+                ["uv", "run", "python3", "mcp_tools_mbpp.py", '--http'],
                 stdout=subprocess.PIPE,
                 stdin=subprocess.PIPE,
                 stderr=subprocess.PIPE
@@ -45,7 +45,7 @@ def main() -> None:
             time.sleep(2)
             sbx: SandBox = SandBox()
             print("Interactive sandbox launched successfully")
-            interactive(sbx, sys.argv[1])
+            interactive(sbx)
         elif sys.argv[1] == "--mcp-stdio" and len(sys.argv) in (3, 4):
             try:
                 command_line: List[str] = sys.argv[2].split()
@@ -66,6 +66,11 @@ def main() -> None:
         print(e)
     except Exception as e:
         print(e)
+    finally:
+        try:
+            sbx.close()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     try:

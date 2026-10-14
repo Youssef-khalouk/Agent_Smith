@@ -25,7 +25,6 @@ class Agent:
         self.timeout_seconds = timeout_seconds
         self.tools: str = ""
         self.messages: list = []
-        self.docker_image: DockerImage | None = None
         self.benchmark = ""
 
     def _describe(self, task: any) -> tuple[str, str, str]:
