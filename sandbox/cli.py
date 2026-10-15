@@ -3,6 +3,7 @@ from .sandbox import SandBox
 from .mcp_client import Mcp_client
 import subprocess
 import time
+from typing import List
 
 
 def interactive(sandbox: SandBox) -> None:
@@ -71,6 +72,7 @@ def main() -> None:
             sbx.close()
         except Exception:
             pass
+
 
 if __name__ == "__main__":
     try:
