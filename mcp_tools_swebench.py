@@ -441,7 +441,8 @@ def fix_issue() -> str:
 
 
 stop_event = threading.Event()
-
+# Creates/initializes a new event object.
+# light switch that multiple threads can look at, wait for, or flip.
 
 def prepare_workspace(
         holder, state: ServerState, image_name, mount_path,
@@ -471,6 +472,8 @@ def prepare_workspace(
             holder.task_context = None
             shutil.rmtree(mount_path, ignore_errors=True)
             stop_event.clear()
+            # Resets the internal flag from True back to False
+            # so Any future calls to stop_event.wait() will block again.
             state.set("unconfigured")
     except Exception as e:
         state.set("failed", error=str(e))
@@ -547,6 +550,8 @@ async def shutdown_endpoint(request):
         return JSONResponse({"state": snapshot["state"],
                              "note": "no active task"})
     stop_event.set()
+    # Changes the internal flag from False to True.
+    # flip the master light switch to ON
 
 
 @asynccontextmanager
