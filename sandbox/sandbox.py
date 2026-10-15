@@ -4,13 +4,15 @@ import subprocess
 from typing import List, Dict, Any
 import resource
 from models import SandboxConfig, DockerImage
-from sandbox.mcp_client import Mcps
+from sandbox.mcp_client import Mcp_client
 from mcp_types._types import ListToolsResult
 import fire
 import asyncio
 import json
 from sandbox.security import configurate_sandbox
-from time import sleep
+from mcp import StdioServerParameters as Params
+import os
+import signal
 
 
 SBX: SandboxConfig = SandboxConfig()
@@ -19,14 +21,18 @@ SBX: SandboxConfig = SandboxConfig()
 class SandBox():
     def __init__(self, connection_type: str = "http",
                  url: str = "http://localhost:8000/",
-                 model: str = "mcp_tools_swebench.py") -> None:
+                 model: str = "mcp_tools_swebench.py",
+                 config_file: str | None = None,
+                 docker_image: DockerImage | None = None) -> None:
+        self.config_file = config_file
         self.connection_type: str = connection_type
         self.url: str = url
         self.error: str | None = None
         self.is_ok: bool = True
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
-        self.mcp_client: Mcps = Mcps()
+        self.docker_image = docker_image
+        self.mcp_client: Mcp_client = Mcp_client(docker_image=self.docker_image)
         self.tools_meta_data: List[str] = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
@@ -36,15 +42,42 @@ class SandBox():
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
         self.tools: ListToolsResult = None
+        self.server_params: Params = None
+        self.executor: subprocess = None
+        self._connect_client()
         self.parse_mcp_tools()
+        self._init_executor()
 
-    async def check_connection_type(self) -> None:
-        if self.connection_type == "http":
-            self.tools = await self.mcp_client.get_tools_http(self.url)
-        elif self.connection_type == "stdio":
-            self.tools = await self.mcp_client.get_tools_stdio(self.model_stdio)
+    def _connect_client(self) -> None:
+        if self.connection_type == "stdio":
+            self.mcp_client.connect_stdio(self.model_stdio)
         else:
-            raise ValueError("Connection type not allowedprint('here'). Try: 'http' or 'stdio'")
+            self.mcp_client.connect_http(self.url)
+            if self.docker_image:
+                error = self.mcp_client.pull_docker_image()
+                if error is not None:
+                    self.error = error
+                    self.is_ok = False
+
+    def _init_executor(self) -> None:
+        self.executor = subprocess.Popen(
+            ["unshare", "--user", 
+             "--map-root-user", "--net", "--",
+             "uv", "run", "python3", "-m",
+             "sandbox.executor", "exec",
+             f"--tool_names={self.tool_names}",
+             f"--config_file={self.config_file}",
+             f"--functions_keys={self.functions_keys_list}"],
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        resource.prlimit(
+            self.executor.pid, resource.RLIMIT_DATA,
+            [SBX.max_memory_mb * 1024 * 1024,
+            SBX.max_memory_mb * 1024 * 1024]
+        )
 
     def get_error(self) -> str:
         return (self.error)
@@ -98,41 +131,10 @@ class SandBox():
         meta_data += f"{return_type}: "
         meta_data += f"Description: {tool.description}"
         return meta_data
-    
-    def pull_image(self, image: DockerImage | None = None) -> None:
-        data = image.model_dump()
-        response = self.mcp_client.pull_image(data, self.url)
-        # if the server is not running the response get asigned with a string:
-        # Failed to establish a new connection: [Errno 111] Connection refused"
-        if isinstance(response, str):
-            self.error = response
-            self.is_ok = False
-            return
-        elif response.status_code in (400, 409):
-            self.error = response.json()["error"]
-            self.is_ok = False
-            return
-        elif response.status_code == 200 or response.status_code == 202:
-            while True:
-                result = self.mcp_client.check_docker_image(self.url)
-                if (isinstance(result, str) or result.json()["state"] == "failed"):
-                    self.error = result
-                    self.is_ok = False
-                    retrueturn
-                if result.json()["state"] == "ready":
-                    break
-                sleep(1)
-        else:
-            self.error = response.json()["error"]
-            self.is_ok = False
-            return
-
-    def shotdown_image(self, image: DockerImage | None = None) -> None:
-        result = self.mcp_client.shutdown_image(self.url)
 
     def parse_mcp_tools(self):
         try:
-            asyncio.run(self.check_connection_type())
+            self.tools = self.mcp_client.get_tools()
         except Exception as e:
             self.error = e
             self.is_ok = False
@@ -149,7 +151,7 @@ class SandBox():
         for tool in self.tools.tools:
             self.tool_names.append(tool.name)
             self.tools_meta_data.append(self._extract_data(tool))
-    
+
     def get_tools_metadata(self) -> List[str]:
         return(self.tools_meta_data)
 
@@ -157,50 +159,69 @@ class SandBox():
         self.final_answer_called = True
         self.final_answer_value = value
 
-    def create_environment(self, code: str,
-                           config_file: str | None) -> str:
-        child_process = subprocess.Popen(
-            ["uv", "run", "python3", "-m",
-             "sandbox.executor", "exec",
-             f"--code={code}",
-             f"--tool_names={self.tool_names}",
-             f"--config_file={config_file}",
-             f"--functions_keys={self.functions_keys_list}",
-             f"--connection_type={self.connection_type}",
-             f"--url={self.url}",
-             f"--model={self.model_stdio}"],
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        output: str = ""
-        resource.prlimit(
-            child_process.pid, resource.RLIMIT_DATA,
-            [SBX.max_memory_mb * 1024 * 1024,
-            SBX.max_memory_mb * 1024 * 1024]
-        )
-        stdout, stderr = child_process.communicate(
-            timeout=SBX.max_execution_time_seconds)
-        if stdout.startswith("__FINAL_ANSWER__SANDBOX__\n"):
-            self._final_answer(stdout[26:])
+    def exec_code(self, code: str) -> str:
+        self.executor.stdin.write(f"{code}\n")
+        self.executor.stdin.flush()
+        configurate_sandbox(self.config_file, SBX)
+        result: str = ""
         
-        if stdout != "":
-            output += f"Stdout: {stdout}"
-        
-        if stderr.startswith("MCP server connection failed:"):
-            self.error = stderr
-            self.is_ok = False
+        while True:
+            response: Dict[str, Any] = {
+                "ok": True,
+                "result": "",
+                "error": ""
+            }
+            line = self.executor.stdout.readline()
+            try:
+                line = json.loads(line)
+            except Exception as e:
+                self.is_ok = False
+                self.error = f"unknown excutor result: {line}"
+                return
 
-        if stderr != "":
-            output += f"Stderr: {stderr}"
+            if line["type"] == "code_result":
+                if line["stdout"]:
+                    result += "STDOUT: " + line['stdout']
+                if line["stderr"]:
+                    result += "\nSTDERR: " + line['stderr']
+                break
+            elif line["type"] == "final_answer":
+                self._final_answer(line["value"])
+                return self.final_answer_value
+            elif line["type"] == "tool_call":
+                try:
+                    response["result"] = self.mcp_client.call_tool(line["name"], line["arguments"])
+                    response = json.dumps(response)
+                except Exception as e:
+                    self.is_ok = False
+                    self.error = e
+                    response["ok"] = False
+                    response["error"] = e
+                self.executor.stdin.write(f"{response}\n")
+                self.executor.stdin.flush()
+            elif line["type"] == "error":
+                self.is_ok = False
+                self.error = line["error"]
+                return
+            else:
+                self.is_ok = False
+                self.error = f"unknowen type result: {line}"
+                return 
 
-        return output
-
-    def exec_code(self, code: str, config_file: str | None = None) -> str:
-        result: str
-        configurate_sandbox(config_file, SBX)
-        result = self.create_environment(code, config_file)
         return result
 
+    def close(self) -> None:
+        self.mcp_client.close()
+        if self.executor is None:
+            return
+        if self.executor.poll() is not None:
+            return
+        try:
+            os.killpg(self.executor.pid, signal.SIGTERM)
+            self.executor.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(self.executor.pid, signal.SIGKILL)
+            self.executor.wait()
+        except ProcessLookupError:
+            pass
 

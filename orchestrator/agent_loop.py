@@ -14,22 +14,18 @@ class Agent:
                  max_iterations: int,
                  max_input_tokens: int,
                  max_output_tokens: int,
-                 timeout_seconds: int):
+                 timeout_seconds: int,
+                 docker_image: DockerImage | None = None):
 
         self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
-        self.sandbox = SandBox()  # url="http://10.11.7.5:8000/"
+        self.sandbox = SandBox(docker_image=docker_image)  # url="http://10.11.7.5:8000/"
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
         self.max_output_tokens: int = max_output_tokens
         self.timeout_seconds = timeout_seconds
         self.tools: str = ""
         self.messages: list = []
-        self.docker_image: DockerImage | None = None
         self.benchmark = ""
-    
-    def set_docker_image(self, docker_image: DockerImage) -> None:
-        self.docker_image = docker_image
-        self.sandbox.pull_image(docker_image)
 
     def _describe(self, task: any) -> tuple[str, str, str]:
         """Return (task_id, benchmark, first user prompt) for a task object."""
@@ -127,6 +123,7 @@ class Agent:
                 break
         else:
             error = "Max iterations reached without final_answer."
-        if self.docker_image:
-            self.sandbox.shotdown_image()
         return self._build_output(task_id, benchmark, success, solution, steps, start, error)
+
+    def close(self) -> None:
+        self.sandbox.close()

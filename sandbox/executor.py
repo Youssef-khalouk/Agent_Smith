@@ -4,44 +4,39 @@ from typing import Dict, List
 from pydantic import BaseModel
 import fire
 from mcp import Client, StdioServerParameters as Params
-import asyncio
 import os
 from sandbox.sandbox import SandBox
 import json
 from sandbox.security import configurate_sandbox
+import sys
+import io
+import contextlib
+from pathlib import Path
+
+
+MAIN_STDOUT = sys.stdout
+MAIN_STDIN = sys.stdin
+
+class Tool_Fieled(Exception):
+    ...
 
 
 SBX: SandboxConfig = SandboxConfig()
-URL = ""
-CONNECTION_TYPE = "http"
-MODEL_STDIO= "mcp_tools_swebench.py"
 
 
-async def call_mcp_tool(function_name: str, kwargs: dict):
-    if CONNECTION_TYPE == "http":
-        try:
-            async with Client(f"{URL}mcp") as client:
-                result = await client.call_tool(function_name, kwargs)
-        except Exception as e:
-            print (f"MCP server connection failed: {e}")
-            exit(1)
-    else:
-        try:
-            server_params = Params(
-                command="uv",
-                args=[
-                "run",
-                "python3",
-                MODEL_STDIO,
-                "--stdio"])
-            context = Client(server_params)
-            client = await context.__aenter__()
-            result = await client.call_tool(function_name, kwargs)
-            await context.__aexit__(None, None, None)
-        except Exception as e:
-            print (f"MCP server connection failed: {e}")
-            exit(1)
-    return result.structured_content["result"]
+def call_mcp_tool(function_name: str, kwargs: dict):
+    request = {
+        "type": "tool_call",
+        "name": function_name,
+        "arguments": kwargs
+    }
+    print(json.dumps(request), file=MAIN_STDOUT, flush=True)
+    line = MAIN_STDIN.readline()
+    response_line = json.loads(line)
+    if not response_line["ok"]:
+        raise Tool_Fieled(response_line["error"])
+    return (response_line["result"])
+
 
 def execute_tool(function_name: str, functions_keys) -> callable:
     def func(*args, **kwargs):
@@ -51,22 +46,24 @@ def execute_tool(function_name: str, functions_keys) -> callable:
                 kwargs[key] = args[i]
             else:
                 break
-        return asyncio.run(call_mcp_tool(function_name, kwargs))
+        return call_mcp_tool(function_name, kwargs)
     return func
 
 
-def safe_open(file, flag):
-    real_open = builtins.open
-    path = os.path.abspath(os.fspath(file))
-    for direct in SBX.allowed_directories:
-        if direct in path:
-            return (real_open(file, flag))
-    raise ValueError("Access denied")
+def safe_open(file, mode="r", *args, **kwargs):
+    path = Path(file).resolve()
+    for directory in SBX.allowed_directories:
+        allowed = Path(directory).resolve()
+        try:
+            path.relative_to(allowed)
+            return builtins.open(path, mode, *args, **kwargs)
+        except ValueError:
+            continue
+    raise PermissionError(f"Access denied: {path}")
 
 
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     real_import = builtins.__import__
-    sbx: SandboxConfig = SandboxConfig()
     root = name.split(".")[0]
     if root not in SBX.authorized_imports:
         raise ValueError("Import not allowed")
@@ -74,22 +71,17 @@ def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 
 def final_answer(value: str) -> str:
-    print ("__FINAL_ANSWER__SANDBOX__\n" + value)
-    exit()
+    output = {
+        "type": "final_answer",
+        "value": value
+    }
+    print(json.dumps(output), file=MAIN_STDOUT, flush=True)
+    return "final answer is called, done."
 
-def exec_code(code: str,
-              tool_names: List[str],
-              config_file: str | None,
-              functions_keys: dict[str, list[str]],
-              connection_type: str = "http",
-              url: str = "http://localhost:8000/",
-              model: str = "mcp_tools_swebench.py") -> str:
-    global URL, CONNECTION_TYPE, MODEL_STDIO
-    URL = url
-    CONNECTION_TYPE = connection_type
-    MODEL_STDIO = model
+def exec_code(tool_names: List[str], config_file: str | None, functions_keys: dict[str, list[str]]) -> str:
+
     configurate_sandbox(config_file, SBX)
-    name_space: Dict[str, str] = {
+    name_space = {
         "sorted": builtins.sorted,
         "print": builtins.print,
         "int": builtins.int,
@@ -115,12 +107,32 @@ def exec_code(code: str,
     for tool in tool_names:
         name_space[tool] = execute_tool(tool, functions_keys)
 
-    exec(code, {"__builtins__": name_space})
+    while True:
+        code: str = input()
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        try:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exec(code, {"__builtins__": name_space})
+        except Tool_Fieled as e:
+            result = {"type": "error", "error": str(e)}
+            print(json.dumps(result), flush=True)
+            continue
+        except Exception as e:
+            stderr.write(f"{type(e).__name__}: {str(e)}")
+
+        output = {
+            "type": "code_result",
+            "stdout": stdout.getvalue().strip(),
+            "stderr": stderr.getvalue().strip(),
+        }
+        print(json.dumps(output), flush=True)
+
 
 def main() -> None:
-    fire.Fire({
-        "exec": exec_code
-    })
+    fire.Fire({"exec": exec_code})
 
 
 if __name__ == "__main__":
