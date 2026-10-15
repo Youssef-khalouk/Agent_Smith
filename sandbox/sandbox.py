@@ -1,10 +1,8 @@
-from pydantic import BaseModel, Field
-import ast
 import subprocess
 from typing import List, Dict, Any
 import resource
-from models import SandboxConfig, DockerImage
-from sandbox.mcp_client import Mcp_client
+from models import SandboxConfig
+from sandbox.mcp_client import McpClient
 from mcp_types._types import ListToolsResult
 import fire
 import asyncio
@@ -19,45 +17,25 @@ SBX: SandboxConfig = SandboxConfig()
 
 
 class SandBox():
-    def __init__(self, connection_type: str = "http",
-                 url: str = "http://localhost:8000/",
-                 model: str = "mcp_tools_swebench.py",
-                 config_file: str | None = None,
-                 docker_image: DockerImage | None = None) -> None:
+    def __init__(self, mcp_client: McpClient, config_file: str | None = None) -> None:
         self.config_file = config_file
-        self.connection_type: str = connection_type
-        self.url: str = url
         self.error: str | None = None
         self.is_ok: bool = True
         self.final_answer_called: bool = False
         self.final_answer_value: str = ""
-        self.docker_image = docker_image
-        self.mcp_client: Mcp_client = Mcp_client(docker_image=self.docker_image)
+        self.mcp_client: McpClient = mcp_client
         self.tools_meta_data: List[str] = [
             "- def final_answer(answer: str) -> None: call this when the task is finished. "
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
         ]
-        self.model_stdio: str = model
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
         self.tools: ListToolsResult = None
         self.server_params: Params = None
         self.executor: subprocess = None
-        self._connect_client()
-        self.parse_mcp_tools()
+        self._parse_mcp_tools()
         self._init_executor()
-
-    def _connect_client(self) -> None:
-        if self.connection_type == "stdio":
-            self.mcp_client.connect_stdio(self.model_stdio)
-        else:
-            self.mcp_client.connect_http(self.url)
-            if self.docker_image:
-                error = self.mcp_client.pull_docker_image()
-                if error is not None:
-                    self.error = error
-                    self.is_ok = False
 
     def _init_executor(self) -> None:
         self.executor = subprocess.Popen(
@@ -132,7 +110,7 @@ class SandBox():
         meta_data += f"Description: {tool.description}"
         return meta_data
 
-    def parse_mcp_tools(self):
+    def _parse_mcp_tools(self):
         try:
             self.tools = self.mcp_client.get_tools()
         except Exception as e:
