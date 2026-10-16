@@ -43,10 +43,10 @@ dump_swebench:
 	cd moulinette && uv run python3 -m moulinette dump --benchmark swebench --output ../tasks/swebench_task.json
 
 run_mbpp:
-	uv run python3 -m agent_mbpp --task-file tasks/mbpp_task.json --output output/mbpp_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-server http://localhost:8000/
+	uv run python3 -m agent_mbpp --task-file tasks/mbpp_task.json --output output/mbpp_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio mcp_tools_mbpp.py
 
 run_swebench:
-	uv run python3 -m agent_swebench --task-file tasks/swebench_task.json --output output/swebench_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-server http://localhost:8000/
+	uv run python3 -m agent_swebench --task-file tasks/swebench_task.json --output output/swebench_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio mcp_tools_swebench.py
 
 validate_mbpp:
 	cd moulinette && uv run python3 -m moulinette validate --benchmark mbpp --task_file ../tasks/mbpp_task.json  --solution_file ../output/mbpp_solution.json

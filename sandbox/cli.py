@@ -33,12 +33,12 @@ def main() -> None:
         description='Test the sandbox using CLI'
     )
     parser.add_argument('config_file', nargs='?', default=None)
-    parser.add_argument('--mcp-stdio', '--mcp_stdio')
-    parser.add_argument('--mcp-server', '--mcp_server')
-    parser.add_argument('--mcp_http')
+    parser.add_argument('--mcp-stdio', default=None)
+    parser.add_argument('--mcp-server', default=None)
+    parser.add_argument('--mcp-http', default=None)
     try:
         args = parser.parse_args()
-        if not args.mcp_stdio and (not args.mcp_server or not args.mcp_http):
+        if not args.mcp_stdio and not args.mcp_server and not args.mcp_http:
             subproc = subprocess.Popen(
                 ["uv", "run", "python3", "mcp_tools_mbpp.py", '--http'],
                 start_new_session=True,

@@ -63,7 +63,7 @@ def agent_swe_bench():
 
         mcp_client = McpClient(args=args, docker_image=docker_image)
 
-        sandbox = SandBox(mcp_client=mcp_client)
+        sandbox = SandBox(mcp_client=mcp_client, config_file=args.sandbox_config)
 
         provider = LLMProvider(api_url=args.provider_url, 
                                api_keys=api_keys,

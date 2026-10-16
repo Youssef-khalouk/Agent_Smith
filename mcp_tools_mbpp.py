@@ -55,6 +55,7 @@ def run_tests(code: str) -> str:
         "max": builtins.max,
         "sum": builtins.sum,
         "abs": builtins.abs,
+        "isinstance": builtins.isinstance,
         "open": safe_open,
         "__import__": safe_import
     }
