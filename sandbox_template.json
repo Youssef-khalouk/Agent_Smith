@@ -1,7 +1,6 @@
 [
     {
         "authorized_imports": [
-            "math",
             "collections", "collections.*",
             "itertools", "re", "json",
             "typing", "typing.*",
