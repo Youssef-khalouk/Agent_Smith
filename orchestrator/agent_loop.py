@@ -8,17 +8,15 @@ import time
 
 class Agent:
     def __init__(self,
-                 api_url: str,
-                 model_name: str,
-                 api_keys: list[str],
+                 provider: LLMProvider,
+                 sandbox: SandBox,
                  max_iterations: int,
                  max_input_tokens: int,
                  max_output_tokens: int,
-                 timeout_seconds: int,
-                 docker_image: DockerImage | None = None):
+                 timeout_seconds: int):
 
-        self.provider = LLMProvider(api_url=api_url, api_keys=api_keys, model_name=model_name)
-        self.sandbox = SandBox(docker_image=docker_image)  # url="http://10.11.7.5:8000/"
+        self.provider = provider
+        self.sandbox = sandbox
         self.max_iterations: int = max_iterations
         self.max_input_tokens: int = max_input_tokens
         self.max_output_tokens: int = max_output_tokens
@@ -124,6 +122,3 @@ class Agent:
         else:
             error = "Max iterations reached without final_answer."
         return self._build_output(task_id, benchmark, success, solution, steps, start, error)
-
-    def close(self) -> None:
-        self.sandbox.close()

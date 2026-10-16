@@ -1,44 +1,74 @@
 import logging
 logging.basicConfig(level=logging.WARNING)
 
-import fire
-from models import MBPPTaskInput, SolutionOutput
+from models import MBPPTaskInput, SolutionOutput, DockerImage
 from pathlib import Path
 from orchestrator import Agent
 import os
 from dotenv import load_dotenv
+import argparse
+from sandbox import SandBox, McpClient
+from orchestrator import LLMProvider
 
 
 load_dotenv()
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--task-file", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--model-name", required=True, help="Model id.")
+    parser.add_argument("--provider-url", required=True, help="API base URL.")
+    parser.add_argument("--mcp-stdio", default=None, help="MCP server command over stdio (default: local http).")
+    parser.add_argument("--mcp-http", default=None, help="MCP server command over local http.")
+    parser.add_argument("--mcp-server", default=None, help="MCP server URL over HTTP.")
+    parser.add_argument("--sandbox-config", default=None)
+    # parser.add_argument("--verbose", action="store_true")
+
+    args = parser.parse_args()
+    return args
+
+
 def print_conversation(messages):
     content = ""
+    this = "====================================="
     for d in messages:
-        content += f"=====================================[{d.get('role', 'None')}]"
-        content += f"=====================================\n{d.get('content', 'None')}\n\n\n\n\n"
+        content += f"{this}[{d.get('role', 'None')}]{this}"
+        content += f"\n{d.get('content', 'None')}\n\n\n\n\n"
     with open("messages.txt", "w") as file:
         file.write(content)
 
 
 def verify_file(file_path: str) -> None:
     path: Path = Path(file_path)
-    if not path.exists():
-        raise Exception(f"Error: file '{path}' not found.")
-    if not path.is_file():
-        raise Exception(f"Error: file '{path}' is not a file.")
+    if not path.exists(): raise Exception(f"Error: file '{path}' not found.")
+    if not path.is_file(): raise Exception(f"Error: file '{path}' is not a file.")
 
-def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
+
+def agent_mbpp():
     try:
-        verify_file(task_file)
+        args = parse_arguments()
 
-        with open(task_file, "r") as file:
-            mbpp_task = MBPPTaskInput.model_validate_json(file.read())
+        verify_file(args.task_file)
 
         api_keys = str(os.getenv("OPENROUTER_API_KEYS")).split(",")
-        
-        agent = Agent(  api_url=provider_url,
-                        model_name=model_name,
-                        api_keys=api_keys,
+        if not api_keys: raise Exception("No api keys provided in .env")
+
+        with open(args.task_file, "r") as file:
+            mbpp_task = MBPPTaskInput.model_validate_json(file.read())
+
+        mcp_client = McpClient(args=args)
+
+        sandbox = SandBox(mcp_client=mcp_client)
+
+        provider = LLMProvider(api_url=args.provider_url, 
+                               api_keys=api_keys,
+                               model_name=args.model_name)
+
+        agent = Agent(  provider=provider,
+                        sandbox=sandbox,
                         max_iterations=10,
                         max_input_tokens=6000,
                         max_output_tokens=1500,
@@ -46,22 +76,29 @@ def agent_mbpp(task_file: str, output: str, model_name: str, provider_url: str):
 
         solution: SolutionOutput = agent.run(mbpp_task)
 
-        output_path = Path(output)
+        output_path = Path(args.output)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as file:
             file.write(solution.model_dump_json(indent=4))
         
-        print_conversation(agent.messages)
-        agent.close()
+        print_conversation(agent.messages) # this is for debugg stuf remove later.
 
     except Exception as e:
         print(f"Error: {e}")
         exit(1)
-    
+
     except KeyboardInterrupt as e:
         print("ctrl + c detected.")
         exit(1)
+    
+    finally:
+        try:
+            mcp_client.close()
+            sandbox.close()
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
-    fire.Fire(agent_mbpp)
+    agent_mbpp()

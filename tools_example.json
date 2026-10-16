@@ -361,7 +361,7 @@
             "required": [
                 "result"
             ],
-            "title": "run_testsOutput",
+            "title": "run_tests",
             "type": "object"
         },
         "icons": null,

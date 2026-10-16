@@ -3,6 +3,8 @@ import sys
 import io
 import contextlib
 from models import SandboxConfig
+import builtins
+from pathlib import Path
 
 
 mcp = MCPServer()

@@ -9,22 +9,26 @@ import os
 from time import sleep
 
 
-class Mcp_client():
+class McpClient():
 
-    def __init__(self,
-            url: str | None = None, 
-            mcp_file: str | None = None, 
-            docker_image: DockerImage | None = None) -> None:
-        self.url = url
+    def __init__(self, args, docker_image: DockerImage | None = None) -> None:
+        self.error = None
+        self.is_ok = True
+        self.container_name = "agent_smith"
+        self.args = args
         self.docker_image = docker_image
-        self.mcp_file = mcp_file
-        self.connection_type: str = "stdio" if mcp_file else "http" if url else ""
+        self.mcp_file = args.mcp_stdio
         self.client = None
         self.context = None
-        self.mcp_server = None
+        self.local_mcp_server = None
+        self.docker_container = None
+
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
+
+        self.connection_type, self.url = self._get_connection_type_and_url(args)
+        self._connect()
 
 
     def _run_loop(self) -> None:
@@ -34,48 +38,104 @@ class Mcp_client():
     def _run_async(self, coro):
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
-    def connect_stdio(self, mcp_file: str | None = None) -> None:
-        # seting the docker image to the environment variables
-        if self.docker_image:
-            for key, value in self.docker_image.model_dump().items():
-                os.environ[key.upper()] = value
+    def _get_connection_type_and_url(self, args) -> (str, str | None):
+        if args.mcp_http:
+            return "http", args.mcp_http
+        if args.mcp_stdio:
+            return "stdio", None
+        if args.mcp_server:
+            return "http_server", args.mcp_server
 
-        if mcp_file:
-            self.mcp_file = mcp_file
+        return "http", "http://localhost:8000/"
+
+    def _connect(self) -> str:
+        if self.connection_type == "stdio":
+            self._connect_stdio()
+        if self.connection_type == "http":
+            self._connect_http()
+        if self.connection_type == "http_server":
+            self._connect_http_server()
+    
+    def _pull_docker_image_locally(self) -> None:
+        import docker
+        from docker.errors import NotFound, ImageNotFound
+        client = docker.from_env()
+        try:
+            client.images.get(self.docker_image.docker_image)
+        except docker.errors.ImageNotFound:
+            client.images.pull(self.docker_image.docker_image)
+        try:
+            self.docker_container = client.containers.get(self.container_name)
+            self._remove_docker_container()
+        except NotFound:
+            pass
+        self.docker_container = client.containers.run(
+            image=self.docker_image.docker_image,
+            name=self.container_name,
+            command="sleep infinity",
+            detach=True)
+
+    def _remove_docker_container(self) -> None:
+        if self.docker_container:
+            self.docker_container.reload()
+            if self.docker_container.status == "running":
+                self.docker_container.stop()
+            self.docker_container.remove()
+            self.docker_container = None
+
+    def _connect_stdio(self) -> None:
         if self.mcp_file is None:
-            raise Exception("you can not connect stdio using None mcp_server!.")
-        self.mcp_server = Params(command="uv", args=[
-                                                "run",
-                                                "python3",
-                                                self.mcp_file,
-                                                "--stdio"])
-        self.context = Client(self.mcp_server)
-        self.client = self._run_async(self.context.__aenter__())
-        self.connection_type = "stdio"
+            raise Exception("you can not connect stdio using None local_mcp_server!.")
 
-    def connect_http(self, url: str | None = None) -> None:
-        if url:
-            self.url = url
+        self.local_mcp_server = Params(command="uv", args=["run", "python3", self.mcp_file, "--stdio"])
+
+        self.context = Client(self.local_mcp_server)
+        self.client = self._run_async(self.context.__aenter__())
+
+        if self.docker_image:
+            self._pull_docker_image_locally()
+
+    def _connect_http(self) -> None:
+        print(self.url)
         if self.url is None:
             raise Exception("you can not connect using None url!.")
+
         self.context = Client(f"{self.url}mcp")
         self.client = self._run_async(self.context.__aenter__())
-        self.connection_type = "http"
 
-    def get_tools(self) -> Any:
-        if not self.connection_type:
-            raise Exception("connection type did not set yet!.")
-        try:
-            tools = self._run_async(self.client.list_tools())
-        except Exception as e:
-            return (f"MCP server connection failed: {e}")
-        return tools
+        if self.docker_image:
+            self._pull_docker_image_locally()
 
-    def close_stdio_connection(self) -> str:
-        if self.context != None:
-            self._run_async(self.context.__aexit__(None, None, None))
+    def _connect_http_server(self) -> None:
+        if self.url is None:
+            raise Exception("you can not connect using None url!.")
 
-    def _pull_image(self) -> None:
+        self.context = Client(f"{self.url}mcp")
+        self.client = self._run_async(self.context.__aenter__())
+
+        if self.docker_image:
+            # pulling docker image in the server
+            response = self._setup_docker_image()
+            if isinstance(response, str):
+                self.error = response
+                self.is_ok = False
+            elif response.status_code in (400, 409):
+                self.error = response.json()["error"]
+                self.is_ok = False
+            elif response.status_code == 200 or response.status_code == 202:
+                while True:
+                    result = self._check_docker_image()
+                    if (isinstance(result, str) or result.json()["state"] == "failed"):
+                        self.error = result
+                        self.is_ok = False
+                    if result.json()["state"] == "ready":
+                        return None
+                    sleep(1)
+            else:
+                self.error = response.json()["error"]
+                self.is_ok = False
+
+    def _setup_docker_image(self) -> None:
         try:
             response = requests.post(
                 f"{self.url}setup",
@@ -87,40 +147,18 @@ class Mcp_client():
             return f"server connection failed: {e}"
         return response
 
-    def pull_docker_image(self) -> str | None:
-        if not self.docker_image:
-            return None
-        response = self._pull_image()
-        # if the server is not running the response get asigned with a string:
-        # Failed to establish a new connection: [Errno 111] Connection refused"
-        if isinstance(response, str):
-            return response
-        elif response.status_code in (400, 409):
-            return response.json()["error"]
-        elif response.status_code == 200 or response.status_code == 202:
-            while True:
-                result = self._check_docker_image(self.url)
-                if (isinstance(result, str) or result.json()["state"] == "failed"):
-                    return result
-                if result.json()["state"] == "ready":
-                    return None
-                sleep(1)
-        else:
-            return response.json()["error"]
-        return None
-
-    def _check_docker_image(self, url: str):
+    def _check_docker_image(self):
         try:
             response = requests.get(
-                f"{url}ready",
+                f"{self.url}ready",
                 headers={"Authorization": "Bearer "},
                 timeout=60,
             )
         except Exception as e:
             return f"server connection failed: {e}"
         return response
-    
-    def _shutdown_image(self) -> None:
+
+    def _shutdown_docker_image(self) -> None:
         try:
             response = requests.post(
                 f"{self.url}shutdown",
@@ -130,25 +168,31 @@ class Mcp_client():
             )
         except Exception as e:
             print(f"shutdown docker image is failed: {e}")
-
+    
+    def get_tools(self) -> Any:
+        try:
+            return self._run_async(self.client.list_tools())
+        except Exception as e:
+            return (f"MCP server connection failed: {e}")
+        
     def call_tool(self, function_name: str, kwargs: dict):
-        if not self.connection_type:
-            raise Exception("connection type did not set yet!.")
         try:
             result = self._run_async(self.client.call_tool(function_name, kwargs))
+            return result.structured_content["result"]
         except Exception as e:
             print (f"MCP server connection failed: {e}")
-        return result.structured_content["result"]
 
     def close(self) -> None:
-        if self.docker_image and self.connection_type == "http":
-            self._shutdown_image()
+        if self.docker_image:
+            if self.connection_type == "http_server":
+                self._shutdown_docker_image()
+            else:
+                self._remove_docker_container()
+        
         try:
             # 1. Close the MCP connection first
             if self.context is not None:
-                self._run_async(
-                    self.context.__aexit__(None, None, None)
-                )
+                self._run_async(self.context.__aexit__(None, None, None))
                 self.context = None
                 self.client = None
 
