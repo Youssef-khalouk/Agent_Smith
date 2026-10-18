@@ -568,7 +568,7 @@ async def lifespan(app):
 
 
 def main() -> None:
-    if "--http" in sys.argv:
+    if "--http-server" in sys.argv:
         create_bound_tools(holder)
         # list of declarations that map URL paths to Python functions
         # and assign their HTTP methods (POST and GET).
@@ -602,12 +602,15 @@ def main() -> None:
         uvicorn.run(app, host="localhost", port=8000)
         return
     elif "--stdio" in sys.argv:
-        problem = os.environ.get("SWEBENCH_PROBLEM_STATEMENT", "xr.where with scalar as second argument fails with keep_attrs=True\n### What happened?\n\n``` python\r\nimport xarray as xr\r\n\r\nxr.where(xr.DataArray([1, 2, 3]) > 0, 1, 0)\r\n```\r\n\r\nfails with\r\n\r\n```\r\n   1809 if keep_attrs is True:\r\n   1810     # keep the attributes of x, the second parameter, by default to\r\n   1811     # be consistent with the `where` method of `DataArray` and `Dataset`\r\n-> 1812     keep_attrs = lambda attrs, context: attrs[1]\r\n   1814 # alignment for three arguments is complicated, so don't support it yet\r\n   1815 return apply_ufunc(\r\n   1816     duck_array_ops.where,\r\n   1817     cond,\r\n   (...)\r\n   1823     keep_attrs=keep_attrs,\r\n   1824 )\r\n\r\nIndexError: list index out of range\r\n```\r\n\r\nThe workaround is to pass `keep_attrs=False`\n\n### What did you expect to happen?\n\n_No response_\n\n### Minimal Complete Verifiable Example\n\n_No response_\n\n### Relevant log output\n\n_No response_\n\n### Anything else we need to know?\n\n_No response_\n\n### Environment\n\nxarray 2022.3.0\n")
-        instance_id = os.environ.get("SWEBENCH_INSTANCE_ID", "pydata__xarray-6461")
         hint = os.environ.get("SWEBENCH_HINTS", "")
-        image_name = os.environ.get("SWEBENCH_IMAGE", "swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest")
-        mount_path = os.environ.get("SWEBENCH_MOUNT", "/tmp/testbed_pydata__xarray-6461")
-        eval_script = os.environ.get("SWEBENCH_EVAL_SCRIPT", "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit -c core.fileMode=false diff 851dadeb0338403e5021c3fbe80cbc9127ee672d\nsource /opt/miniconda3/bin/activate\nconda activate testbed\npython -m pip install -e .\ngit checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/xarray/tests/test_computation.py b/xarray/tests/test_computation.py\n--- a/xarray/tests/test_computation.py\n+++ b/xarray/tests/test_computation.py\n@@ -1928,6 +1928,10 @@ def test_where_attrs() -> None:\n     expected = xr.DataArray([1, 0], dims=\"x\", attrs={\"attr\": \"x\"})\n     assert_identical(expected, actual)\n \n+    # ensure keep_attrs can handle scalar values\n+    actual = xr.where(cond, 1, 0, keep_attrs=True)\n+    assert actual.attrs == {}\n+\n \n @pytest.mark.parametrize(\"use_dask\", [True, False])\n @pytest.mark.parametrize(\"use_datetime\", [True, False])\n\nEOF_114329324912\n: '>>>>> Start Test Output'\npytest -rA xarray/tests/test_computation.py\n: '>>>>> End Test Output'\ngit checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py\n")
+        try:
+            problem = os.environ["SWEBENCH_PROBLEM_STATEMENT"]
+            instance_id = os.environ["SWEBENCH_INSTANCE_ID"]
+            image_name = os.environ["SWEBENCH_IMAGE"]
+            mount_path = os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
+            eval_script = os.environ["SWEBENCH_EVAL_SCRIPT"]
+        except KeyError as e:
+            raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
 
         with DockerWorkspace(mount_path, image_name=image_name) as ws:
             # 3. Bind tools to workspace and server instance
@@ -620,9 +623,34 @@ def main() -> None:
             }
             create_bound_tools(holder)
             MCP.run()   # stdio is the default
+    elif "--http" in sys.argv:
+        hint = os.environ.get("SWEBENCH_HINTS", "")
+        try:
+            problem = os.environ["SWEBENCH_PROBLEM_STATEMENT"]
+            instance_id = os.environ["SWEBENCH_INSTANCE_ID"]
+            image_name = os.environ["SWEBENCH_IMAGE"]
+            mount_path = os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
+            eval_script = os.environ["SWEBENCH_EVAL_SCRIPT"]
+        except KeyError as e:
+            raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
+
+        with DockerWorkspace(mount_path, image_name=image_name) as ws:
+            # 3. Bind tools to workspace and server instance
+            holder.eval_script = eval_script
+            holder.workspace = ws
+            holder.task_context = {
+                "problem_statement": problem,
+                "instance_id": instance_id,
+                "hints": hint
+            }
+            create_bound_tools(holder)
+            MCP.run(
+                transport="streamable-http",
+                host="127.0.0.1",
+                port=8000)
     else:
         raise ValueError(
-            "Connection type doesn't exist ! Try 'http' or 'stdio'")
+            "Connection type doesn't exist ! Try 'http' or 'stdio' or 'http-server'")
 
     # --------------------STDIO-----------------
     # use command to start server using stdio, opens the Web UI automatically:
