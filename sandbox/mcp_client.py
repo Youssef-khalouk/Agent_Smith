@@ -96,7 +96,7 @@ class McpClient():
             self._pull_docker_image_locally()
 
     def _connect_http(self) -> None:
-        print(self.url)
+        # print(self.url)
         if self.url is None:
             raise Exception("you can not connect using None url!.")
 

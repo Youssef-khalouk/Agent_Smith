@@ -138,11 +138,12 @@ class SandBox():
         self.final_answer_value = value
 
     def exec_code(self, code: str) -> str:
-        self.executor.stdin.write(f"{code}\n")
+        code = {"code": code}
+        self.executor.stdin.write(f"{json.dumps(code)}\n")
         self.executor.stdin.flush()
         configurate_sandbox(self.config_file, SBX)
         result: str = ""
-        
+
         while True:
             response: Dict[str, Any] = {
                 "ok": True,
@@ -184,7 +185,7 @@ class SandBox():
             else:
                 self.is_ok = False
                 self.error = f"unknowen type result: {line}"
-                return 
+                return
 
         return result
 

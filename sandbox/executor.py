@@ -100,6 +100,7 @@ def exec_code(tool_names: List[str], config_file: str | None, functions_keys: di
         "max": builtins.max,
         "sum": builtins.sum,
         "abs": builtins.abs,
+        "isinstance": builtins.isinstance,
         "open": safe_open,
         "final_answer": final_answer,
         "__import__": safe_import
@@ -108,14 +109,19 @@ def exec_code(tool_names: List[str], config_file: str | None, functions_keys: di
         name_space[tool] = execute_tool(tool, functions_keys)
 
     while True:
-        code: str = input()
+        try:
+            code = json.loads(input())
+        except Exception as e:
+            result = {"type": "error", "error": str(e)}
+            print(json.dumps(result), flush=True)
+            continue
 
         stdout = io.StringIO()
         stderr = io.StringIO()
 
         try:
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                exec(code, {"__builtins__": name_space})
+                exec(code["code"], {"__builtins__": name_space})
         except Tool_Fieled as e:
             result = {"type": "error", "error": str(e)}
             print(json.dumps(result), flush=True)

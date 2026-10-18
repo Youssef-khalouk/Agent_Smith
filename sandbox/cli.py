@@ -1,12 +1,16 @@
 import sys
 from .sandbox import SandBox
-from .mcp_client import Mcp_client
+from .mcp_client import McpClient
 import subprocess
 import time
 from typing import List
+import argparse
+import os
+import signal
 
 
 def interactive(sandbox: SandBox) -> None:
+    print("Interactive sandbox run successfully !")
     while True:
         if not sandbox.is_ok:
             print (sandbox.error)
@@ -23,45 +27,42 @@ def interactive(sandbox: SandBox) -> None:
 
 
 def main() -> None:
-    args: int = len(sys.argv)
+    flag: bool = False
+    parser = argparse.ArgumentParser(
+        prog='sandbox_cli',
+        description='Test the sandbox using CLI'
+    )
+    parser.add_argument('config_file', nargs='?', default=None)
+    parser.add_argument('--mcp-stdio', default=None)
+    parser.add_argument('--mcp-server', default=None)
+    parser.add_argument('--mcp-http', default=None)
     try:
-        if args == 1:
+        args = parser.parse_args()
+        if not args.mcp_stdio and not args.mcp_server and not args.mcp_http:
             subproc = subprocess.Popen(
                 ["uv", "run", "python3", "mcp_tools_mbpp.py", '--http'],
+                start_new_session=True,
                 stdout=subprocess.PIPE,
                 stdin=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
+            flag = True
             time.sleep(2)
-            sbx: SandBox = SandBox()
-            print("Interactive sandbox launched successfully")
-            interactive(sbx)
-        elif args == 2 and sys.argv[1] not in ("--mcp-stdio", "--mcp-server"):
-            subproc = subprocess.Popen(
-                ["uv", "run", "python3", "mcp_tools_swebench.py", '--http'],
-                stdout=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            time.sleep(2)
-            sbx: SandBox = SandBox()
-            print("Interactive sandbox launched successfully")
-            interactive(sbx)
-        elif sys.argv[1] == "--mcp-stdio" and len(sys.argv) in (3, 4):
-            try:
-                command_line: List[str] = sys.argv[2].split()
-                print("Interactive sandbox launched successfully")
-                sbx = SandBox(connection_type="stdio", model=command_line[1], config_file=sys.argv[3])
-                interactive(sbx)
-            except IndexError as e:
-                print("You didn't provide enough arguments")
-        elif sys.argv[1] == "--mcp-server" and len(sys.argv) == 3:
-            url: str = sys.argv[2]
-            print("Interactive sandbox launched successfully")
-            sbx = SandBox(url=url)
-            interactive(sbx)
         else:
-            print("somthing went wrong!!")
+            spliter: List[str] = args.mcp_stdio.split()
+            args.mcp_stdio = spliter[1]
+        mcp_client: McpClient = McpClient(args)
+        sbx: SandBox = SandBox(mcp_client, args.config_file)
+        interactive(sbx)
+        if flag:
+            try:
+                os.killpg(subproc.pid, signal.SIGTERM)
+                subproc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(subproc.pid, signal.SIGKILL)
+                subproc.wait()
+            except ProcessLookupError:
+                pass
     except IndexError as e:
         print("You didn't provide enough arguments")
         print(e)
