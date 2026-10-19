@@ -556,12 +556,16 @@ async def shutdown_endpoint(request):
 
 @asynccontextmanager
 async def lifespan(app):
+    # 1. STARTUP: Start MCPServer's background session manager
     # The MCP session manager must stay running while the HTTP server is alive.
     # Normally MCP.run() starts it for us, but in remote mode we create
     # the Starlette app ourselves, so we have to manage it here.
     async with MCP.session_manager.run():
+        # 2. THE RUNNING PHASE: Pause here while the server is alive and serving requests
         # Keep the session manager alive for the entire lifetime of the server.
         yield
+    # 3. SHUTDOWN: When the server stops, the 'async with' block exits
+    # and automatically cleans up the MCP sessions safely.
     # When I use MCP.run(), the MCP SDK manages its lifecycle for me. When I
     # create my own Starlette app and mount MCP.streamable_http_app(), I must
     # explicitly keep the MCP session manager alive using Starlette's lifespan
@@ -613,7 +617,6 @@ def main() -> None:
             raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
 
         with DockerWorkspace(mount_path, image_name=image_name) as ws:
-            # 3. Bind tools to workspace and server instance
             holder.eval_script = eval_script
             holder.workspace = ws
             holder.task_context = {
@@ -657,10 +660,10 @@ def main() -> None:
     # npx @modelcontextprotocol/inspector uv run python mcp_tools_swebench.py
     # ------------------HTTP-------------------
     # TERMINAL COMMANDS IN ORDER:
-    # terminal 1: uv run python mcp_tools_swebench.py --http
+    # terminal 1: uv run python mcp_tools_swebench.py --http-server
     # terminal 2: npx @modelcontextprotocol/inspector http://localhost:8000/mcp
     # ------------------ MORE HTTP-----------------
-    # Terminal 1:  uv run python mcp_tools_swebench.py --http
+    # Terminal 1:  uv run python mcp_tools_swebench.py --http-server
     # Terminal 2 (in order):
     # curl http://127.0.0.1:8000/ready
     #  → EXPECT {"state": "unconfigured"}
