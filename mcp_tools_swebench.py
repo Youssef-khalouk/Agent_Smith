@@ -665,8 +665,8 @@ def main() -> None:
             #     """
             #     )
         except KeyError as e:
-            raise ValueError(
-                f"missing variable {e.args[0]}, make sure to pass all of them!!")
+            print(f"missing variable {e.args[0]}, make sure to pass all of them!!")
+            exit(1)
 
         # 1. Register tools NOW — they exist, holder.workspace is still None,
         #    and each tool gracefully answers "not configured yet" if called early.

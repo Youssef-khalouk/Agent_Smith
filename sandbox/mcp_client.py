@@ -13,6 +13,7 @@ import json
 class McpClient():
 
     def __init__(self, args, docker_image: DockerImage | None = None) -> None:
+        if args.verbose: print("\nInitalizeing McpClient.")
         self.error = None
         self.is_ok = True
         self.args = args
@@ -27,15 +28,23 @@ class McpClient():
         self.thread.start()
 
         self.connection_type, self.url = self._get_connection_type_and_url(args)
+        
+        if args.verbose: print(f"\tconnection type: {self.connection_type}.")
+        if args.verbose: print("\tconnecting mcp server...")
 
         if not self._connect(): return None
 
+        if args.verbose: print("\tmcp server is connected.")
+
         if self.docker_image is not None:
+            if args.verbose: print("\tpulling docker image...")
+
             if self.connection_type == "stdio":
                 self._wait_for_docker_image()
             else:
                 self._pull_docker_image_in_server()
 
+            if args.verbose and self.is_ok: print("\tdocker image is pulled seccessfully.")
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self.loop)
@@ -57,10 +66,7 @@ class McpClient():
             self._connect_stdio()
         elif self.connection_type == "http_server":
             self._connect_http_server()
-        if self.is_ok:
-            print("mcp server is connected.")
-            return True
-        return False
+        return self.is_ok
 
     def _connect_http_server(self) -> None:
         if self.url is None:
@@ -71,7 +77,7 @@ class McpClient():
         except Exception:
             self.error = "can't connect to mcp server, run mcp server first."
             self.is_ok = False
-    
+
     def _connect_stdio(self) -> None:
         if self.mcp_file is None:
             raise Exception("you can not connect stdio using None local_mcp_server!.")
@@ -80,6 +86,8 @@ class McpClient():
         if self.docker_image:
             for k, v in self.docker_image.model_dump().items():
                 env[k.upper()] = str(v)
+
+        if self.args.verbose: print("\trunning local mcp server.")
 
         self.local_mcp_server = Params(
             command="sh",

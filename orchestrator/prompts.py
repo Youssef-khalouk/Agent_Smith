@@ -76,6 +76,7 @@ IMPORTANT:
 - Run tests after making changes to verify the fix.
 - Only call final_answer once you have verified the fix works.
 - final_answer(get_patch()) ends the task.
+- The repository is located at '{mount_path}'. All file paths must be inside it.
 
 Functions available inside the code block:
 {tools}
@@ -131,12 +132,12 @@ final_answer(get_patch())
 class Prompts:
 
     @staticmethod
-    def system_prompt(tools: str = "", benchmark="mbpp") -> str:
+    def system_prompt(tools: str = "", benchmark="mbpp", mount_path: str = ".") -> str:
         if benchmark == "mbpp":
             return MBPP_PROMPT.replace("{tools}", tools)
 
         if benchmark == "swe_bench":
-            return SWEBENCH_PROMPT.replace("{tools}", tools)
+            return SWEBENCH_PROMPT.replace("{tools}", tools).replace("{mount_path}", mount_path)
 
         raise ValueError(f"Unsupported benchmark: {benchmark}")
 
