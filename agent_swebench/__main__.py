@@ -22,8 +22,7 @@ def parse_arguments():
     parser.add_argument("--model-name", required=True, help="Model id.")
     parser.add_argument("--provider-url", required=True, help="API base URL.")
     parser.add_argument("--mcp-stdio", default=None, help="MCP server command over stdio (default: local http).")
-    parser.add_argument("--mcp-http", default=None, help="MCP server command over local http.")
-    parser.add_argument("--mcp-server", default=None, help="MCP server URL over HTTP.")
+    parser.add_argument("--mcp-http", default=None, help="MCP server command over http.")
     parser.add_argument("--sandbox-config", default=None)
     # parser.add_argument("--verbose", action="store_true")
 
@@ -43,8 +42,8 @@ def print_conversation(messages):
 
 def verify_file(file_path: str) -> None:
     path: Path = Path(file_path)
-    if not path.exists(): raise Exception(f"Error: file '{path}' not found.")
-    if not path.is_file(): raise Exception(f"Error: file '{path}' is not a file.")
+    if not path.exists(): raise Exception(f"file '{path}' not found.")
+    if not path.is_file(): raise Exception(f"file '{path}' is not a file.")
 
 
 def agent_swe_bench():
@@ -62,6 +61,7 @@ def agent_swe_bench():
         docker_image = DockerImage.model_validate(swe_bench_task.model_dump())
 
         mcp_client = McpClient(args=args, docker_image=docker_image)
+        if not mcp_client.is_ok: raise Exception(mcp_client.error)
 
         sandbox = SandBox(mcp_client=mcp_client, config_file=args.sandbox_config)
 
