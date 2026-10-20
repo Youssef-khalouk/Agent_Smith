@@ -8,30 +8,6 @@ def search_code(
             file_pattern: str = "*.py",
             offset: int = 0,
         ) -> str:
-    """Searches workspace files for a regex pattern using line-level matching.
-
-    Queries workspace files filtered by a file pattern using a regular
-    expression. Returns formatted matching lines with 1-based line numbers,
-    absolute file paths, and offset pagination details.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing path
-            resolution and line matching.
-        pattern (str): The regular expression pattern to search for.
-        file_pattern (str, optional): Glob pattern specifying which files to
-            search within. Defaults to "*.py".
-        offset (int, optional): Zero-based match index offset for pagination.
-            Defaults to 0.
-
-    Returns:
-        str: A formatted header followed by line-numbered file matches, or an
-        actionable error message if regex compilation fails or offset is
-        invalid.
-
-    Raises:
-        Catches workspace exceptions (`re.error`, `ValueError`) internally and
-        returns descriptive error strings.
-    """
     formatted_result = []
     try:
         capped_matches, total_matches = workspace.search_files_for_pattern(
@@ -73,29 +49,6 @@ def search_function_or_class_definition_in_code(
             file_pattern: str = "*.py",
             offset: int = 0,
         ) -> str:
-    """Searches workspace files for function or class definitions matching name.
-
-    Queries workspace files filtered by a file pattern to locate `def` or `class`
-    statements matching the provided identifier. Returns formatted matching
-    lines with 1-based line numbers, absolute file paths, and offset pagination.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing path
-            resolution and code AST / definition matching.
-        name (str): The function or class name to search for.
-        file_pattern (str, optional): Glob pattern specifying which files to
-            search within. Defaults to "*.py".
-        offset (int, optional): Zero-based match index offset for pagination.
-            Defaults to 0.
-
-    Returns:
-        str: A formatted header followed by line-numbered file matches, or an
-        actionable error message if the offset is invalid or no matches exist.
-
-    Raises:
-        Catches workspace exceptions (`ValueError`) internally and returns
-        descriptive error strings.
-    """
     formatted_result = []
     try:
         capped_matches, total_matches = (
@@ -133,32 +86,6 @@ def find_references(
             line: int,
             offset: int = 0,
         ) -> str:
-    """Finds all reference occurrences of a given identifier across Python files.
-
-    Searches the workspace for references to `name`, excluding its definition
-    located at line `line` inside `filepath`. Formats each match with its
-    absolute file path, 1-based line number, and line content, with support
-    for offset pagination.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing path
-            resolution and symbol references.
-        name (str): The name of the function, class, or variable to find.
-        filepath (str): Relative or absolute path to the file containing the
-            definition to exclude.
-        line (int): The 1-based line number of the definition to exclude.
-        offset (int, optional): Zero-based match index offset for pagination.
-            Defaults to 0.
-
-    Returns:
-        str: A formatted header followed by line-numbered file matches, or an
-        actionable error message if the path is invalid or offset is negative.
-
-    Raises:
-        Catches workspace exceptions (`PathOutsideRootError`,
-        FileNotFoundError`,`IsADirectoryError`, `ValueError`)
-        internally and returns descriptive error strings.
-    """
     # name: what we're looking for, e.g. "calculate"
     # filepath: which file, e.g. "src/math.py"
     # line: the definition line that should be excluded

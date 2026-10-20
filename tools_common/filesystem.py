@@ -22,17 +22,6 @@ MAX_LINE_LIMIT = 200
 
 
 def format_cat_n(lines: list[str], start_line_num: int = 1) -> str:
-    """Formats a list of strings with right-aligned, 1-based line numbers.
-
-    Args:
-        lines (list[str]): The lines of text to format.
-        start_line_num (int, optional): The starting line number for numbering.
-            Defaults to 1.
-
-    Returns:
-        str: A single string with newline-separated lines formatted as
-        '   line_num: line_content'.
-    """
     formatted_lines = []
     for num, line in enumerate(lines, start=start_line_num):
         formatted_lines.append(f"{num:>6}: {line}")
@@ -41,31 +30,6 @@ def format_cat_n(lines: list[str], start_line_num: int = 1) -> str:
 
 def read_file(workspace: LocalWorkspace, filepath: str, start_line: int = 1,
               end_line: int = -1):
-    """Reads and formats the content of a file with 1-based line numbers.
-
-    Retrieves raw text content via the provided LocalWorkspace instance,
-    validates line ranges, and returns a formatted string containing line
-    numbers. Appends a pagination hint if the output exceeds line limit
-    thresholds.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing
-        file system access and root path resolution.
-        filepath (str): The relative or absolute file path to read.
-        start_line (int, optional): The starting line number
-        (1-based, inclusive). Defaults to 1.
-        end_line (int, optional): The ending line number (1-based, inclusive).
-            If set to -1, reads up to `MAX_LINE_LIMIT` lines. Defaults to -1.
-
-    Returns:
-        str: Formatted string of line-numbered text content,
-        or an error message describing any validation or file system failure.
-
-    Raises:
-        Catches file system exceptions (`FileNotFoundError`,
-        `IsADirectoryError`, `PathOutsideRootError`, `UnicodeDecodeError`,
-        `PermissionError`) internally and returns descriptive error strings.
-    """
     try:
         raw_text = workspace.read_file_text(filepath)
     except FileNotFoundError:
@@ -131,30 +95,6 @@ def read_file(workspace: LocalWorkspace, filepath: str, start_line: int = 1,
 
 def edit_file(workspace: LocalWorkspace, filepath: str,
               old_str: str, new_str: str) -> str:
-    """Replaces a unique target string in a file with a replacement string.
-
-    Locates `old_str` within the specified file and replaces it with `new_str`.
-    Returns a success message along with a line-numbered snippet showing
-    context around the edit. Rejects ambiguous edits where `old_str` matches
-    multiple times or is identical to `new_str`.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing file
-            system access and path resolution.
-        filepath (str): The relative or absolute path of the file to edit.
-        old_str (str): The exact string or multi-line block to replace.
-        new_str (str): The new string content to insert.
-
-    Returns:
-        str: A confirmation message including context around the edited line,
-        or an error message describing any validation or workspace failure.
-
-    Raises:
-        Catches workspace and filesystem exceptions (`StringNotFoundError`,
-        `MultipleMatchesError`, `EmptyStringError`, `FileNotFoundError`,
-        `IsADirectoryError`, `PathOutsideRootError`, `PermissionError`)
-        internally and returns descriptive error strings.
-    """
     if old_str == new_str:
         return "Error: new_str is identical to old_str. No changes made."
     try:
@@ -199,32 +139,6 @@ def edit_file(workspace: LocalWorkspace, filepath: str,
 
 def list_files(workspace: LocalWorkspace, directory: str = ".",
                pattern: str = "*", offset: int = 0) -> str:
-    """Lists files and directories within a workspace directory matching a pattern.
-
-    Queries the workspace directory entries using glob pattern matching and
-    returns a paginated list of file entries. Supports offset pagination for
-    large directory listings and provides parent directory hints on failure.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing file
-            system access and path resolution.
-        directory (str, optional): Relative or absolute path to the directory
-            to list. Defaults to ".".
-        pattern (str, optional): Glob pattern filter (e.g., "*.py", "src/*").
-            Defaults to "*".
-        offset (int, optional): Zero-based index offset for pagination.
-            Defaults to 0.
-
-    Returns:
-        str: A formatted header and newline-separated list of entries, along
-        with a pagination hint if more entries exist, or a descriptive error
-        string.
-
-    Raises:
-        Catches workspace and filesystem exceptions (`FileNotFoundError`,
-        `NotADirectoryError`, `PathOutsideRootError`, `PermissionError`,
-        `ValueError`) internally and returns descriptive error strings.
-    """
     if not pattern or not pattern.strip():
         pattern = "*"
     try:
