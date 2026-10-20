@@ -638,7 +638,6 @@ def main() -> None:
             raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
 
         with DockerWorkspace(mount_path, image_name=image_name) as ws:
-            # 3. Bind tools to workspace and server instance
             holder.eval_script = eval_script
             holder.workspace = ws
             holder.task_context = {
