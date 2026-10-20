@@ -30,6 +30,7 @@ from tools_common.code_search import (
     find_references as find_references_impl,
 )
 MAX_CHARACTERS = 3000
+watch = False
 MCP = MCPServer("MCP-SERVER")
 last_activity_time = time.time()
 activity_lock = threading.Lock()
@@ -449,6 +450,7 @@ stop_event = threading.Event()
 # Creates/initializes a new event object.
 # light switch that multiple threads can look at, wait for, or flip.
 
+
 def prepare_workspace(
         holder, state: ServerState, image_name, mount_path,
         eval_script, problem, instance_id, hints):
@@ -466,7 +468,8 @@ def prepare_workspace(
                 "hints": hints
             }
             state.set("ready")
-            start_watchman()
+            if watch is True:
+                start_watchman()
             # his line freezes the background thread right there.
             # stop_event is never set to green (stop_event.set()), the
             # thread pauses forever inside the with block.
@@ -557,6 +560,12 @@ async def shutdown_endpoint(request):
     stop_event.set()
     # Changes the internal flag from False to True.
     # flip the master light switch to ON
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+            break
+        await asyncio.sleep(0.05)          # NOT time.sleep — see below
+    return JSONResponse(server_state.snapshot())
 
 
 @asynccontextmanager
@@ -587,6 +596,8 @@ def setup_docker_image(data):
 
 def main() -> None:
     if "--http" in sys.argv:
+        global watch
+        watch = True
         create_bound_tools(holder)
         # list of declarations that map URL paths to Python functions
         # and assign their HTTP methods (POST and GET).
@@ -612,56 +623,87 @@ def main() -> None:
         # Starts the Uvicorn http web server listening on port 8000
         # turns your custom web server and your MCP server into a
         # single, unified service running under one PID on port 8000
-
-        def handle_shutdown(signum, frame):
-            stop_event.set()          # wake the parked thread
-        signal.signal(signal.SIGTERM, handle_shutdown)
-        signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        try:
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        finally:
+            stop_event.set()
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+                    break
+                time.sleep(0.05)
         return
     elif "--stdio" in sys.argv:
         try:
-            hint = os.environ.get("HINTS_TEXT", "")
+            image_name = os.environ["DOCKER_IMAGE"]
+            eval_script = os.environ["EVAL_SCRIPT"]
             problem = os.environ["PROBLEM_STATEMENT"]
             instance_id = os.environ["INSTANCE_ID"]
-            image_name = os.environ["DOCKER_IMAGE"]
-            mount_path = os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
-            eval_script = os.environ["EVAL_SCRIPT"]
+            mount_path = os.environ.get(
+                "SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
+            hint = os.environ.get("HINTS_TEXT", "")
+            # problem = os.environ.get(
+            #     "PROBLEM_STATEMENT",
+            #     "Fix the bug in the xarray.where function when keep_attrs=True."
+            # )
+            # instance_id = os.environ.get(
+            #     "INSTANCE_ID",
+            #     "pydata__xarray-6461"
+            # )
+            # image_name = os.environ.get(
+            #     "DOCKER_IMAGE",
+            #     "swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest"
+            # )
+            # eval_script = os.environ.get(
+            #         "EVAL_SCRIPT",
+            #         """#!/bin/bash
+            #     set -euxo pipefail
+            #     source /opt/miniconda3/bin/activate
+            #     conda activate testbed
+            #     cd /testbed
+            #     pytest -q xarray/tests/test_computation.py
+            #     """
+            #     )
         except KeyError as e:
-            raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
+            raise ValueError(
+                f"missing variable {e.args[0]}, make sure to pass all of them!!")
 
-        with DockerWorkspace(mount_path, image_name=image_name) as ws:
-            holder.eval_script = eval_script
-            holder.workspace = ws
-            holder.task_context = {
-                "problem_statement": problem,
-                "instance_id": instance_id,
-                "hints": hint
-            }
-            setup_docker_image({
-                "docker_image": image_name,
-                "eval_script": eval_script,
-                "problem_statement": problem,
-                "instance_id": instance_id,
-                "hints_text": hint,
-                "mount_path": mount_path
-            })
-            create_bound_tools(holder)
-            MCP.run()   # stdio is the default
+        # 1. Register tools NOW — they exist, holder.workspace is still None,
+        #    and each tool gracefully answers "not configured yet" if called early.
+        create_bound_tools(holder)
+
+        # 2. ONE container, prepared in the background (same machinery as /setup).
+        setup_docker_image({
+            "docker_image": image_name,
+            "eval_script": eval_script,
+            "problem_statement": problem,
+            "instance_id": instance_id,
+            "hints_text": hint,
+            "mount_path": mount_path,
+        })
+
+        try:
+            MCP.run()   # blocks until the client disconnects
+        finally:
+            stop_event.set()
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+                    break
+                time.sleep(0.05)
     else:
-        # there is no try block to raise error here !!!!!
-        raise ValueError(
-            "Connection type doesn't exist ! Try 'http' or 'stdio' or 'http-server'")
+        print("Connection type doesn't exist ! Try 'http' or 'stdio'")
+        exit(1)
 
     # --------------------STDIO-----------------
     # use command to start server using stdio, opens the Web UI automatically:
-    # npx @modelcontextprotocol/inspector uv run python mcp_tools_swebench.py
+    # npx @modelcontextprotocol/inspector uv run python mcp_tools_swebench.py --stdio
     # ------------------HTTP-------------------
     # TERMINAL COMMANDS IN ORDER:
-    # terminal 1: uv run python mcp_tools_swebench.py --http-server
+    # terminal 1: uv run python mcp_tools_swebench.py --http
     # terminal 2: npx @modelcontextprotocol/inspector http://localhost:8000/mcp
     # ------------------ MORE HTTP-----------------
-    # Terminal 1:  uv run python mcp_tools_swebench.py --http-server
+    # Terminal 1:  uv run python mcp_tools_swebench.py --http
     # Terminal 2 (in order):
     # curl http://127.0.0.1:8000/ready
     #  → EXPECT {"state": "unconfigured"}
