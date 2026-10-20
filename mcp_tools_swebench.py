@@ -384,6 +384,11 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         ]
 
 
+@MCP.resource("task://ready")
+def is_docker_image_ready() -> str:
+    return server_state.snapshot()
+
+
 @MCP.resource("task://context")
 def task_context_resource() -> str:
     """The current task: problem statement,
@@ -571,8 +576,17 @@ async def lifespan(app):
     # explicitly keep the MCP session manager alive using Starlette's lifespan
 
 
+def setup_docker_image(data):
+    threading.Thread(target=prepare_workspace, args=(
+        holder, server_state, data["docker_image"], data["mount_path"],
+        data["eval_script"], data["problem_statement"],
+        data["instance_id"], data["hints_text"]), daemon=True).start()
+
+    return JSONResponse({"state": "preparing"}, status_code=202)
+
+
 def main() -> None:
-    if "--http-server" in sys.argv:
+    if "--http" in sys.argv:
         create_bound_tools(holder)
         # list of declarations that map URL paths to Python functions
         # and assign their HTTP methods (POST and GET).
@@ -603,16 +617,16 @@ def main() -> None:
             stop_event.set()          # wake the parked thread
         signal.signal(signal.SIGTERM, handle_shutdown)
         signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
-        uvicorn.run(app, host="localhost", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8000)
         return
     elif "--stdio" in sys.argv:
-        hint = os.environ.get("SWEBENCH_HINTS", "")
         try:
-            problem = os.environ["SWEBENCH_PROBLEM_STATEMENT"]
-            instance_id = os.environ["SWEBENCH_INSTANCE_ID"]
-            image_name = os.environ["SWEBENCH_IMAGE"]
+            hint = os.environ.get("HINTS_TEXT", "")
+            problem = os.environ["PROBLEM_STATEMENT"]
+            instance_id = os.environ["INSTANCE_ID"]
+            image_name = os.environ["DOCKER_IMAGE"]
             mount_path = os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
-            eval_script = os.environ["SWEBENCH_EVAL_SCRIPT"]
+            eval_script = os.environ["EVAL_SCRIPT"]
         except KeyError as e:
             raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
 
@@ -624,34 +638,18 @@ def main() -> None:
                 "instance_id": instance_id,
                 "hints": hint
             }
+            setup_docker_image({
+                "docker_image": image_name,
+                "eval_script": eval_script,
+                "problem_statement": problem,
+                "instance_id": instance_id,
+                "hints_text": hint,
+                "mount_path": mount_path
+            })
             create_bound_tools(holder)
             MCP.run()   # stdio is the default
-    elif "--http" in sys.argv:
-        hint = os.environ.get("SWEBENCH_HINTS", "")
-        try:
-            problem = os.environ["SWEBENCH_PROBLEM_STATEMENT"]
-            instance_id = os.environ["SWEBENCH_INSTANCE_ID"]
-            image_name = os.environ["SWEBENCH_IMAGE"]
-            mount_path = os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
-            eval_script = os.environ["SWEBENCH_EVAL_SCRIPT"]
-        except KeyError as e:
-            raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
-
-        with DockerWorkspace(mount_path, image_name=image_name) as ws:
-            # 3. Bind tools to workspace and server instance
-            holder.eval_script = eval_script
-            holder.workspace = ws
-            holder.task_context = {
-                "problem_statement": problem,
-                "instance_id": instance_id,
-                "hints": hint
-            }
-            create_bound_tools(holder)
-            MCP.run(
-                transport="streamable-http",
-                host="127.0.0.1",
-                port=8000)
     else:
+        # there is no try block to raise error here !!!!!
         raise ValueError(
             "Connection type doesn't exist ! Try 'http' or 'stdio' or 'http-server'")
 
