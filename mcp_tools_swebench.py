@@ -617,7 +617,7 @@ def main() -> None:
             stop_event.set()          # wake the parked thread
         signal.signal(signal.SIGTERM, handle_shutdown)
         signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
-        uvicorn.run(app, host="localhost", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8000)
         return
     elif "--stdio" in sys.argv:
         try:
@@ -649,6 +649,7 @@ def main() -> None:
             create_bound_tools(holder)
             MCP.run()   # stdio is the default
     else:
+        # there is no try block to raise error here !!!!!
         raise ValueError(
             "Connection type doesn't exist ! Try 'http' or 'stdio' or 'http-server'")
 

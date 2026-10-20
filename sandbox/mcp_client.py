@@ -15,14 +15,12 @@ class McpClient():
     def __init__(self, args, docker_image: DockerImage | None = None) -> None:
         self.error = None
         self.is_ok = True
-        self.container_name = "agent_smith"
         self.args = args
         self.docker_image = docker_image
         self.mcp_file = args.mcp_stdio
         self.client = None
         self.context = None
         self.local_mcp_server = None
-        self.docker_container = None
 
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -30,9 +28,9 @@ class McpClient():
 
         self.connection_type, self.url = self._get_connection_type_and_url(args)
 
-        if not self._connect(): return
+        if not self._connect(): return None
 
-        if self.docker_image:
+        if self.docker_image is not None:
             if self.connection_type == "stdio":
                 self._wait_for_docker_image()
             else:
@@ -107,21 +105,21 @@ class McpClient():
             if isinstance(result, str):
                 self.error = result
                 self.is_ok = False
-                break
-
+                return None
             if self.connection_type == "stdio":
                 re = json.loads(result.contents[0].text)
-            else:
+            elif self.connection_type == "http_server":
                 re = result.json()
+
             if re["state"] == "ready":
                 return None
+
             if re["state"] == "failed":
                 self.error = "somthing went wrong with pulling docker image."
                 self.is_ok =  False
             sleep(1)
     
     def _pull_docker_image_in_server(self):
-        # pulling docker image in the server
         response = self._setup_docker_image()
         if isinstance(response, str):
             self.error = response
@@ -129,9 +127,14 @@ class McpClient():
         elif response.status_code == 200 or response.status_code == 202:
             self._wait_for_docker_image()
         else: # errors like 400, 409 ....
-            self.error = response.json()["error"]
-            self.is_ok = False
-
+            try:
+                self.error = response.json()["error"]
+            except ValueError:
+                self.error = "coudn't pull docker image in server. pull docker response dosn't contine json"
+            except Exception as e:
+                self.error = str(e)
+            finally:
+                self.is_ok = False
 
     def _setup_docker_image(self) -> None:
         try:

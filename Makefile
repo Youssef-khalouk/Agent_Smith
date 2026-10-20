@@ -103,7 +103,7 @@ start_mbpp_server_http:
 	uv run python3 mcp_tools_mbpp.py --http >> log.txt 2>&1 &
 
 start_mcp_server_stdio:
-	uv run python3 mcp_tools_swebench.py --stdio >> log.txt 2>&1 &
+	uv run python3 mcp_tools_swebench.py --stdio
 
 stop_mbpp_server:
 	pkill -9 -f "mcp_tools_mbpp"
