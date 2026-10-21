@@ -7,6 +7,7 @@ from typing import List
 import argparse
 import os
 import signal
+from pathlib import Path
 
 
 def interactive(sandbox: SandBox) -> None:
@@ -33,24 +34,19 @@ def main() -> None:
         description='Test the sandbox using CLI'
     )
     parser.add_argument('config_file', nargs='?', default=None)
-    parser.add_argument('--mcp-stdio', default=None)
-    parser.add_argument('--mcp-server', default=None)
-    parser.add_argument('--mcp-http', default=None)
+    parser.add_argument('--mcp-stdio', '--mcp_stdio', default=None)
+    parser.add_argument('--mcp-http', '--mcp_http', default=None)
+    parser.add_argument("--verbose", action="store_true")
     try:
         args = parser.parse_args()
-        if not args.mcp_stdio and not args.mcp_server and not args.mcp_http:
-            subproc = subprocess.Popen(
-                ["uv", "run", "python3", "mcp_tools_mbpp.py", '--http'],
-                start_new_session=True,
-                stdout=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            flag = True
-            time.sleep(2)
-        else:
+        if args.config_file:
+            if not Path(args.config_file).exists():
+                raise ValueError("Configuration file doesn't exist !")
+        if args.mcp_stdio:
             spliter: List[str] = args.mcp_stdio.split()
-            args.mcp_stdio = spliter[1]
+            args.mcp_stdio = spliter[-1]
+        if not args.mcp_stdio and not args.mcp_http:
+            args.mcp_stdio = "mcp_tools_mbpp.py"
         mcp_client: McpClient = McpClient(args)
         sbx: SandBox = SandBox(mcp_client, args.config_file)
         interactive(sbx)
