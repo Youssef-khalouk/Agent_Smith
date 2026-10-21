@@ -13,8 +13,11 @@ class Agent:
                  max_iterations: int,
                  max_input_tokens: int,
                  max_output_tokens: int,
-                 timeout_seconds: int):
+                 timeout_seconds: int,
+                 logs: bool = False):
 
+        self.logs = logs
+        if self.logs: print("\nInitalizeing Agent.")
         self.provider = provider
         self.sandbox = sandbox
         self.max_iterations: int = max_iterations
@@ -23,19 +26,26 @@ class Agent:
         self.timeout_seconds = timeout_seconds
         self.tools: str = ""
         self.messages: list = []
-        self.benchmark = ""
 
     def _describe(self, task: any) -> tuple[str, str, str]:
-        """Return (task_id, benchmark, first user prompt) for a task object."""
+        """Return (task_id, benchmark, system_prompt, first user prompt) for a task object."""
         if isinstance(task, MBPPTaskInput):
             self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_tools_metadata()])
-            self.benchmark = "mbpp"
-            return str(task.task_id), "mbpp", Prompts.mbpp_task(task)
-        if isinstance(task, SWEBenchTaskInput):
+            task_id = str(task.task_id)
+            benchmark = "mbpp"
+            system_prompt = Prompts.system_prompt(self.tools, benchmark)
+            task_prompt = Prompts.mbpp_task(task)
+
+        elif isinstance(task, SWEBenchTaskInput):
             self.tools = "".join([f"{tool}\n" for tool in self.sandbox.get_tools_metadata()])
-            self.benchmark = "swe_bench"
-            return task.instance_id, "swebench", Prompts.swebench_task(task)
-        raise TypeError(f"Unsupported task type: {type(task).__name__}")
+            task_id = task.instance_id
+            benchmark = "swe_bench"
+            system_prompt = Prompts.system_prompt(self.tools, benchmark)
+            task_prompt = Prompts.swebench_task(task)
+        else:
+            raise TypeError(f"Unsupported task type: {type(task).__name__}")
+
+        return (task_id, benchmark, system_prompt, task_prompt)
 
     def _limit_error(self, steps, start) -> str | None:
         if time.time() - start >= self.timeout_seconds:
@@ -77,10 +87,11 @@ class Agent:
         )
 
     def run(self, task: MBPPTaskInput | SWEBenchTaskInput) -> SolutionOutput:
-        task_id, benchmark, task_prompt = self._describe(task)
+        if self.logs: print("\trunning agent loop:")
+        task_id, benchmark, system_prompt, task_prompt = self._describe(task)
         start = time.time()
         self.messages = [
-            {"role": "system", "content": Prompts.system_prompt(self.tools, self.benchmark)},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": task_prompt}
         ]
 
@@ -101,7 +112,8 @@ class Agent:
                 break
 
             extracted_code, thought = extract_code(result.text)
-            print("\n" + thought)
+            if self.logs and extracted_code: print("\t\t" + thought + "\n")
+
             if extracted_code is None:
                 observation = Prompts.no_python_code_found()
             else:
@@ -109,8 +121,9 @@ class Agent:
                     observation = self.sandbox.exec_code(extracted_code)
                 except Exception as e:
                     observation = f"Error: {type(e).__name__}: {e}"
-            
-            steps.append(self._metrics(step, result, extracted_code, str(observation)))
+                finally:
+                    steps.append(self._metrics(step, result, extracted_code, observation))
+
             code_block = f"```python\n{extracted_code}\n```" if extracted_code else ""
             self.messages.append({"role": "assistant", "content": f"Thought: {thought}\n{code_block}"})
             self.messages.append({"role": "user", "content": Prompts.observation(observation)})
