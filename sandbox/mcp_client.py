@@ -22,17 +22,25 @@ class McpClient():
         self.client = None
         self.context = None
         self.local_mcp_server = None
+        self.env = {}
+        if self.docker_image:
+            self.env = {k.upper(): v for k, v in self.docker_image.model_dump().items()}
 
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
 
         self.connection_type, self.url = self._get_connection_type_and_url(args)
-        
+
         if args.verbose: print(f"\tconnection type: {self.connection_type}.")
         if args.verbose: print("\tconnecting mcp server...")
 
-        if not self._connect(): return None
+        if self.connection_type == "stdio":
+            self._connect_stdio()
+        elif self.connection_type == "http_server":
+            self._connect_http()
+        
+        if not self.is_ok: return None
 
         if args.verbose: print("\tmcp server is connected.")
 
@@ -40,20 +48,25 @@ class McpClient():
             if args.verbose: print("\tpulling docker image...")
 
             if self.connection_type == "stdio":
-                self._wait_for_docker_image()
+                self._pull_docker_image_in_stdio()
             else:
                 self._pull_docker_image_in_server()
 
             if args.verbose and self.is_ok: print("\tdocker image is pulled seccessfully.")
 
+    def _set_error(self, error: str) -> None:
+        self.error = error
+        self.is_ok = False
+        return None
+
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
 
-    def _run_async(self, coro):
+    def _run_async(self, coro) -> any:
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
-    def _get_connection_type_and_url(self, args) -> (str, str | None):
+    def _get_connection_type_and_url(self, args) -> tuple[str, str | None]:
         if args.mcp_http:
             return "http_server", args.mcp_http
         if args.mcp_stdio:
@@ -61,31 +74,18 @@ class McpClient():
 
         return "http_server", "http://localhost:8000/"
 
-    def _connect(self) -> bool:
-        if self.connection_type == "stdio":
-            self._connect_stdio()
-        elif self.connection_type == "http_server":
-            self._connect_http_server()
-        return self.is_ok
-
-    def _connect_http_server(self) -> None:
+    def _connect_http(self) -> None:
         if self.url is None:
-            raise Exception("you can not connect using None url!.")
+            return self._set_error("you can not connect using None url!.")
         try:
             self.context = Client(f"{self.url}mcp")
             self.client = self._run_async(self.context.__aenter__())
         except Exception:
-            self.error = "can't connect to mcp server, run mcp server first."
-            self.is_ok = False
+            return self._set_error("can't connect to mcp server, run mcp server first.")
 
     def _connect_stdio(self) -> None:
         if self.mcp_file is None:
-            raise Exception("you can not connect stdio using None local_mcp_server!.")
-        import os
-        env = os.environ.copy()
-        if self.docker_image:
-            for k, v in self.docker_image.model_dump().items():
-                env[k.upper()] = str(v)
+            return self._set_error("you can not connect stdio using None local_mcp_server!.")
 
         if self.args.verbose: print("\trunning local mcp server.")
 
@@ -97,52 +97,57 @@ class McpClient():
                 "sh",
                 self.mcp_file,
             ],
-            env=env,
+            env=self.env,
         )
         try:
             self.context = Client(self.local_mcp_server)
             self.client = self._run_async(self.context.__aenter__())
         except Exception:
-            self.error = "can't connect to mcp server, try again!"
-            self.is_ok = False
+            return self._set_error("can't connect to mcp server, try again!")
 
     def _wait_for_docker_image(self) -> None:
         while True:
             result = self._check_docker_image()
 
             if isinstance(result, str):
-                self.error = result
-                self.is_ok = False
-                return None
-            if self.connection_type == "stdio":
-                re = json.loads(result.contents[0].text)
-            elif self.connection_type == "http_server":
-                re = result.json()
+                return self._set_error(result)
+            try:
+                if self.connection_type == "stdio":
+                    re = json.loads(result.contents[0].text)
+                else:
+                    re = result.json()
+            except Exception as e:
+                return self._set_error(f"Error: {e}")
 
-            if re["state"] == "ready":
-                return None
+            if re["state"] == "ready": return None
 
             if re["state"] == "failed":
-                self.error = "somthing went wrong with pulling docker image."
-                self.is_ok =  False
+                return self._set_error(re["error"])
+
             sleep(1)
-    
+
     def _pull_docker_image_in_server(self):
         response = self._setup_docker_image()
         if isinstance(response, str):
-            self.error = response
-            self.is_ok = False
+            return self._set_error(response)
         elif response.status_code == 200 or response.status_code == 202:
             self._wait_for_docker_image()
         else: # errors like 400, 409 ....
             try:
                 self.error = response.json()["error"]
-            except ValueError:
-                self.error = "coudn't pull docker image in server. pull docker response dosn't contine json"
             except Exception as e:
-                self.error = str(e)
-            finally:
-                self.is_ok = False
+                return self._set_error(e)
+
+    def _pull_docker_image_in_stdio(self) -> None:
+        try:
+            result = self._run_async(self.client.read_resource("task://setup"))
+            re = json.loads(result.contents[0].text)
+            if re["state"] == "failed":
+                return self._set_error(re["error"])
+        except Exception as e:
+            return self._set_error(f"MCP server connection error: {e}")
+
+        self._wait_for_docker_image()
 
     def _setup_docker_image(self) -> None:
         try:
@@ -188,7 +193,7 @@ class McpClient():
         except Exception as e:
             return (f"MCP server connection error: {e}")
         
-    def call_tool(self, function_name: str, kwargs: dict):
+    def call_tool(self, function_name: str, kwargs: dict) -> any:
         try:
             result = self._run_async(self.client.call_tool(function_name, kwargs))
             return result.structured_content["result"]

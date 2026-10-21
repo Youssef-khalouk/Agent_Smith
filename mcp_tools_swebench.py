@@ -335,8 +335,31 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         ]
 
 
+@MCP.resource("task://setup")
+def setup_docker_image() -> dict:
+    try:
+        docker_info = {
+            "image_name": os.environ["DOCKER_IMAGE"],
+            "eval_script": os.environ["EVAL_SCRIPT"],
+            "problem": os.environ["PROBLEM_STATEMENT"],
+            "instance_id": os.environ["INSTANCE_ID"],
+            "mount_path": os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{os.environ['INSTANCE_ID']}"),
+            "hints": os.environ.get("HINTS_TEXT", ""),
+        }
+        threading.Thread(
+            target=prepare_workspace, args=(holder, server_state),
+            kwargs=docker_info, daemon=True
+        ).start()
+        return {"state": "preparing", "error": ""}
+
+    except KeyError as e:
+        return {"state": "failed", "error": f"could not read environ {e.args[0]}."}
+    except Exception as e:
+        return {"state": "failed", "error": f"environ error: {e}."}
+
+
 @MCP.resource("task://ready")
-def is_docker_image_ready() -> str:
+def is_docker_image_ready() -> dict:
     return server_state.snapshot()
 
 
@@ -535,15 +558,6 @@ async def lifespan(app):
     # explicitly keep the MCP session manager alive using Starlette's lifespan
 
 
-def setup_docker_image(data):
-    threading.Thread(target=prepare_workspace, args=(
-        holder, server_state, data["docker_image"], data["mount_path"],
-        data["eval_script"], data["problem_statement"],
-        data["instance_id"], data["hints_text"]), daemon=True).start()
-
-    return JSONResponse({"state": "preparing"}, status_code=202)
-
-
 def main() -> None:
     if "--http" in sys.argv:
         global watch
@@ -583,55 +597,10 @@ def main() -> None:
                     break
                 time.sleep(0.05)
         return
-    elif "--stdio" in sys.argv:
-        try:
-            image_name = os.environ["DOCKER_IMAGE"]
-            eval_script = os.environ["EVAL_SCRIPT"]
-            problem = os.environ["PROBLEM_STATEMENT"]
-            instance_id = os.environ["INSTANCE_ID"]
-            mount_path = os.environ.get(
-                "SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
-            hint = os.environ.get("HINTS_TEXT", "")
-            # problem = os.environ.get(
-            #     "PROBLEM_STATEMENT",
-            #     "Fix the bug in the xarray.where function when keep_attrs=True."
-            # )
-            # instance_id = os.environ.get(
-            #     "INSTANCE_ID",
-            #     "pydata__xarray-6461"
-            # )
-            # image_name = os.environ.get(
-            #     "DOCKER_IMAGE",
-            #     "swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest"
-            # )
-            # eval_script = os.environ.get(
-            #         "EVAL_SCRIPT",
-            #         """#!/bin/bash
-            #     set -euxo pipefail
-            #     source /opt/miniconda3/bin/activate
-            #     conda activate testbed
-            #     cd /testbed
-            #     pytest -q xarray/tests/test_computation.py
-            #     """
-            #     )
-        except KeyError as e:
-            print(f"missing variable {e.args[0]}, make sure to pass all of them!!")
-            exit(1)
-
+    else:
         # 1. Register tools NOW — they exist, holder.workspace is still None,
         #    and each tool gracefully answers "not configured yet" if called early.
         create_bound_tools(holder)
-
-        # 2. ONE container, prepared in the background (same machinery as /setup).
-        setup_docker_image({
-            "docker_image": image_name,
-            "eval_script": eval_script,
-            "problem_statement": problem,
-            "instance_id": instance_id,
-            "hints_text": hint,
-            "mount_path": mount_path,
-        })
-
         try:
             MCP.run()   # blocks until the client disconnects
         finally:
@@ -641,9 +610,6 @@ def main() -> None:
                 if server_state.snapshot()["state"] in ("unconfigured", "failed"):
                     break
                 time.sleep(0.05)
-    else:
-        print("Connection type doesn't exist ! Try 'http' or 'stdio'")
-        exit(1)
 
     # --------------------STDIO-----------------
     # use command to start server using stdio, opens the Web UI automatically:

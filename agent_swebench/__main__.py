@@ -52,8 +52,7 @@ def agent_swe_bench():
 
         verify_file(args.task_file)
 
-        api_keys = str(os.getenv("OPENROUTER_API_KEYS")).split(",")
-        if not api_keys: raise Exception("No api keys provided in .env")
+        api_keys = str(os.getenv("OPENROUTER_API_KEYS", "")).split(",")
 
         with open(args.task_file, "r") as file:
             swe_bench_task = SWEBenchTaskInput.model_validate_json(file.read())

@@ -19,12 +19,13 @@ class LLMProvider:
         self.api_url = api_url
         self.model_name = model_name
         self.api_keys = api_keys
-        self._key_index = 0
 
         if self.api_url.strip() == "":
             raise Exception("provider url is empty!.")
         if self.model_name.strip() == "":
             raise Exception("model name is empty!.")
+        if self.api_keys == []:
+            raise Exception("there is no api key provided.")
     
     def _get_reasoning_params(self):
         model = self.model_name.lower()
@@ -50,25 +51,18 @@ class LLMProvider:
             }
         return {}
 
-    def _current_key(self) -> str:
-        return self.api_keys[self._key_index]
-
-    def _rotate_key(self):
-        self._key_index = (self._key_index + 1) % len(self.api_keys)
-        # if self._key_index == 0:
-            # print("\nall the keys exhausted. wait for 30 second and try again...\n")
-            # sleep(30)
 
     def generate(self, messages: list[dict], stop_sequences: list[str] = []) -> LLMResponse:
         stop_seq = {"stop": stop_sequences} if stop_sequences else {}
         last_error = None
         keys_len = len(self.api_keys)
         for attempt in range(keys_len):
+            carent_key = attempt % keys_len # in case i try keys multiple times.
             start = time.time()
             try:
                 response = requests.post(
                     f"{self.api_url}",
-                    headers={"Authorization": f"Bearer {self._current_key()}"},
+                    headers={"Authorization": f"Bearer {self.api_keys[carent_key]}"},
                     json={
                         "model": self.model_name,
                         "messages": messages,
@@ -78,7 +72,7 @@ class LLMProvider:
                     timeout=60,
                 )
                 if response.status_code == 429:
-                    raise RateLimitError(f" Rate limited on key index {self._key_index} ")
+                    raise RateLimitError(f" Rate limited on key index {carent_key} ")
                 response.raise_for_status()  # raise any error if there is.
                 data = response.json()
                 latency_ms = (time.time() - start) * 1000
@@ -87,13 +81,12 @@ class LLMProvider:
                     input_tokens=data["usage"]["prompt_tokens"],
                     output_tokens=data["usage"]["completion_tokens"],
                     latency_ms=latency_ms,
-                    retries=attempt % keys_len,
+                    retries=carent_key,
                 )
             except (RateLimitError, requests.RequestException) as e:
                 if last_error == None:
                     last_error = str(e)
                 else:
                     last_error += str(e)
-                self._rotate_key()
 
         raise RuntimeError(f"All API keys exhausted. error: {last_error}")

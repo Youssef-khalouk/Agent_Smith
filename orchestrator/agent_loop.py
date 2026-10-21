@@ -134,4 +134,5 @@ class Agent:
                 break
         else:
             error = "Max iterations reached without final_answer."
+        if self.logs and error: print(error)
         return self._build_output(task_id, benchmark, success, solution, steps, start, error)
