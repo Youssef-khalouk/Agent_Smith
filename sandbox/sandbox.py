@@ -17,7 +17,9 @@ SBX: SandboxConfig = SandboxConfig()
 
 
 class SandBox():
-    def __init__(self, mcp_client: McpClient, config_file: str | None = None) -> None:
+    def __init__(self, mcp_client: McpClient, config_file: str | None = None, logs: bool = False) -> None:
+        self.logs = logs
+        if self.logs: print("\nInitalizeing sandbox.")
         self.config_file = config_file
         self.error: str | None = None
         self.is_ok: bool = True
@@ -35,9 +37,11 @@ class SandBox():
         self.server_params: Params = None
         self.executor: subprocess = None
         self._parse_mcp_tools()
+
         self._init_executor()
 
     def _init_executor(self) -> None:
+        if self.logs: print("\trunning subprocess executor.")
         self.executor = subprocess.Popen(
             ["unshare", "--user", 
              "--map-root-user", "--net", "--",
@@ -111,6 +115,7 @@ class SandBox():
         return meta_data
 
     def _parse_mcp_tools(self):
+        if self.logs: print("\tgeting tools and parse them.")
         try:
             self.tools = self.mcp_client.get_tools()
         except Exception as e:
