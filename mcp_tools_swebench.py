@@ -111,29 +111,21 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def read_file(filepath: str, start_line: int = 1,
                   end_line: int | None = None) -> str:
-        """Read a file's content with line numbers (cat -n style).
+        """Read a file with line numbers (1-based, inclusive).
 
-        Output format: "<line_number>: <line_content>" with right-aligned
-        line numbers. Lines are 1-based and both bounds are inclusive.
-        Output is capped at 200 lines per call; when truncated, the result
-        states the total line count and the start_line to use for the next
-        chunk.
+    Returns at most 200 lines per call. If truncated, reports the total
+    line count and the next start_line.
 
-        Always read a file (or a slice of it) before editing it.
+    Always read a file before editing it.
 
-        Args:
-            filepath: Path to the file, relative to the repository root
-                (absolute paths inside the workspace are also accepted).
-            start_line: First line to read (1-based, inclusive). Defaults
-                to 1.
-            end_line: Last line to read (inclusive). Use None (default)
-                to read to the end of the file.
+    Args:
+        filepath: Repository-relative path or absolute workspace path.
+        start_line: First line to read (default: 1).
+        end_line: Last line to read, or None for EOF (default: None).
 
-        Returns:
-            The numbered file content, or an error message starting with
-            "Error:" that describes the problem and which tool to call
-            next.
-        """
+    Returns:
+        Numbered content, or an "Error:" message with the next tool to use.
+    """
         note_activity()
         # Translate the schema-friendly None into the implementation's
         # -1 sentinel meaning "read to end of file".
@@ -251,26 +243,16 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def search_code(pattern: str, file_pattern: str = "*.py",
                     offset: int = 0) -> str:
-        """Search file contents for a regex pattern (grep-like).
-
-        Searches all files whose names match file_pattern, recursively,
-        skipping hidden/VCS directories and binary files. Output format:
-        "/absolute/path/to/file.py:<line_number> <line_content>".
-        Results are paginated: at most 100 matches per call; use offset
-        for the next page.
-
-        Args:
-            pattern: Regular expression to search for (Python re
-                syntax).
-            file_pattern: Glob pattern selecting which file names to
-                search (e.g. "*.py"). Defaults to "*.py".
-            offset: Skip the first N matches (pagination). Defaults
-                to 0.
-
-        Returns:
-            Matching lines in the standard format with a total count,
-            or a "no matches" / "invalid regex" error message.
-        """
+        """Grep-like regex search recursively across files matching file_pattern (skips hidden/binary).
+    
+    Args:
+        pattern: Python regex pattern to search for.
+        file_pattern: Glob filter for filenames (default: "*.py").
+        offset: Pagination offset, number of matches to skip (max 100/call).
+        
+    Returns:
+        Formatted lines ("path:line line_content") with total count, or error message.
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -529,6 +511,7 @@ async def setup_endpoint(request):
             return JSONResponse(
                 {"error": "already configured"}, status_code=409)
     mount_path = f"/tmp/testbed_{data.get('instance_id')}"
+    print("MOUNT PATH IS:", mount_path, file=sys.stderr)
     # daemon so the thread dies once the main process ends
     # this is the thread that will be frozen forever in the with block
     threading.Thread(target=prepare_workspace, args=(
