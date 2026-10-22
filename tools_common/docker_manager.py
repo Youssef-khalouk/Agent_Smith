@@ -220,8 +220,9 @@ class ContainerManager:
             self.container = None
 
     def extract(self):
-        # A wipe is only legal at BIRTH — never while a live container
-        # is using this mount. Refuse instead of destroying active work.
+        git_dir = Path(self.host_mount_path) / ".git"
+        if git_dir.exists():
+            return
         if self.container is not None:
             self.container.reload()
             if self.container.status == "running":

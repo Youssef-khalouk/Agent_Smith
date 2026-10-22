@@ -105,11 +105,10 @@ make test_tools_in_container  # requires the Docker daemon
 #### References
 
 - [Model Context Protocol — documentation](https://modelcontextprotocol.io) — the Tools concept and the Python SDK quickstart
-- [Docker — documentation](https://docs.docker.com) — images, containers, bind mounts, and the Python SDK
-- [SWE-bench](https://www.swebench.com) — the benchmark, task format, and evaluation model
-- [Pro Git](https://git-scm.com/book/en/v2) — diffs and patches
-- [Python 3.10 documentation](https://docs.python.org/3.10/) — [subprocess](https://docs.python.org/3.10/library/subprocess.html), [threading](https://docs.python.org/3.10/library/threading.html), [pathlib](https://docs.python.org/3.10/library/pathlib.html), [ast](https://docs.python.org/3.10/library/ast.html)
+- [MCP vs API Explained](https://youtu.be/7yNvsFrwpp0) — Relationship between MCP and API
+- [MCP build guid](https://youtu.be/He8tUwLzLnU) — the building steps of an MCP server
+- [Reason for MCP](https://youtu.be/kn6dxL53NkM) — Explanation of the issue that MCP fixed
 
 ### AI usage disclosure (my components)
 
-AI tools were used throughout as a learning partner and code reviewer, not as a code generator. The working method was: research a concept, implement it independently, then submit it for review — bugs and design flaws found in review were fixed by hand, and every design decision (the workspace abstraction, the window/door split, the lifecycle guarantees, the wipe-on-birth policy, the token-budget-driven tool philosophy) can be explained and defended by its author. All code in my components (tools_common/, mcp_tools_swebench.py, the test files) was written by me. AI was additionally used for explaining unfamiliar concepts (MCP, Docker internals, async lifespans) and drafting project-management artifacts (the Jira backlog). The discovery process — including the bugs found and fixed along the way — is recorded in my journal.
+AI tools were used throughout as a learning partner and code reviewer, not as a code generator. The working method was: research a concept, implement it independently, then submit it for review — bugs and design flaws found in review were fixed by hand, and every design decision (the workspace abstraction, the window/door split, the lifecycle guarantees, the wipe-on-birth policy, the token-budget-driven tool philosophy) can be explained and defended by its author. All code in my components (tools_common/, mcp_tools_swebench.py, the test files) was written by me. AI was additionally used for explaining unfamiliar concepts (MCP, Docker internals, async lifespans) and drafting project-management artifacts (the Jira backlog).

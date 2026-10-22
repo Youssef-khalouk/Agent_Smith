@@ -4,7 +4,7 @@ from tools_common.workspace import (
 )
 
 CAP_NUMBER = 2000
-TIMEOUT = 90  # got to change it to 60 or 90 later
+TIMEOUT = 60  # got to change it to 60 or 90 later
 
 
 def run_command(workspace: LocalWorkspace, command: str,

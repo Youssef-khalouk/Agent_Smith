@@ -412,7 +412,7 @@ def phase_2_and_3() -> None:
             # Setup temporary host mount and workspace
             mount_dir = Path("/tmp/test_d19_mount").resolve()
             if mount_dir.exists():
-                  import shutil
+                  
                   shutil.rmtree(mount_dir)
 
             image_name = os.getenv(

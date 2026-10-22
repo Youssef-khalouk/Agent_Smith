@@ -346,12 +346,12 @@ def main() -> None:
 
         print("\n[TEST 32] Command timeout")
 
-        result = run_command(workspace, "sleep 35")
+        result = run_command(workspace, "sleep 62")
 
         print(result)
 
         assert "TIMEOUT" in result
-        assert "10 seconds" in result
+        assert "60 seconds" in result
 
         # ============================================================
         # TEST 33 — Huge output / truncation
@@ -429,7 +429,7 @@ def main() -> None:
 
         result = run_command(
             workspace,
-            "python3 -c \"print('before timeout', flush=True); import time; time.sleep(35)\""
+            "python3 -c \"print('before timeout', flush=True); import time; time.sleep(62)\""
         )
 
         print(result)

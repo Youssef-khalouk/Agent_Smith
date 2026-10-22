@@ -537,7 +537,7 @@ async def shutdown_endpoint(request):
     while time.time() < deadline:
         if server_state.snapshot()["state"] in ("unconfigured", "failed"):
             break
-        await asyncio.sleep(0.05)          # NOT time.sleep — see below
+        await asyncio.sleep(0.05)
     return JSONResponse(server_state.snapshot())
 
 
