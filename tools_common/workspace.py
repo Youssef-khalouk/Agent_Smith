@@ -239,6 +239,8 @@ class LocalWorkspace():
             return ("The search pattern cannot be empty. "
                     "Provide a regex pattern to search for.")
         # check if llm provided broken regex: "def("
+        # parses it upfront and stores it in memory
+        # rejex_obj is like a pointer to it so we dont re-parse again
         # makes searching easier using regex object
         regex_obj = re.compile(pattern)
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
