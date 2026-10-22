@@ -88,17 +88,6 @@ fclean: clean
 
 #######################################################
 
-
-test_ai:
-	uv run python -m tests.test_ai
-
-test_sbx:
-	uv run python -m tests.test_sandbox
-
-
-test_orchestrator:
-	uv run python -m tests.test_orchestrator
-
 start_mcp_server_http:
 	uv run python3 mcp_tools_swebench.py --http >> log.txt 2>&1 &
 
@@ -113,16 +102,6 @@ stop_mbpp_server:
 
 stop_mcp_server:
 	pkill -9 -f "mcp_tools_swebench"
-
-test_client:
-	uv run python3 -m tests.test_tools
-
-test_tools:
-	uv run python3 -m tests.test_tools
-
-
-test_tools_in_container:
-	uv run python3 -m tests.test_tools_with_docker
 
 
 
