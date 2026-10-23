@@ -455,16 +455,3 @@ class DockerWorkspace:
             raise PathOutsideRootError("outside root")
         return self.container_manager.exec(command, folder_path, timeout)
 
-
-# with DockerWorkspace("/home/ouchouir/agent") as dw:
-#     print(dw.container_manager.container.status)
-# print(dw.container_manager.container)
-# dw = DockerWorkspace("/home/ouchouir/agent")
-# dw.start()
-# first = dw.container_manager.container.id
-# dw.start()
-# second = dw.container_manager.container.id
-# assert first == second, "start() must be idempotent — same container!"
-# dw.die()
-# ----------------------------------------
-# # run with uv run python -m tools_common.workspace

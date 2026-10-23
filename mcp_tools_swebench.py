@@ -611,36 +611,6 @@ def main() -> None:
                     break
                 time.sleep(0.05)
 
-    # --------------------STDIO-----------------
-    # use command to start server using stdio, opens the Web UI automatically:
-    # npx @modelcontextprotocol/inspector uv run python mcp_tools_swebench.py --stdio
-    # ------------------HTTP-------------------
-    # TERMINAL COMMANDS IN ORDER:
-    # terminal 1: uv run python mcp_tools_swebench.py --http
-    # terminal 2: npx @modelcontextprotocol/inspector http://localhost:8000/mcp
-    # ------------------ MORE HTTP-----------------
-    # Terminal 1:  uv run python mcp_tools_swebench.py --http
-    # Terminal 2 (in order):
-    # curl http://127.0.0.1:8000/ready
-    #  → EXPECT {"state": "unconfigured"}
-    # curl -X POST http://127.0.0.1:8000/setup \
-    #    -H "Content-Type: application/json" \
-    #    -d '{"docker_image":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
-    #         "eval_script":"echo hello",
-    #         "instance_id":"pydata__xarray-6461",
-    #         "problem_statement": "bug in repo, keeps crashing",
-    #         "hints_text": "focus on search named functions"}'
-    #  → EXPECT 202 {"state": "preparing"}
-    # (repeat the POST immediately)
-    #  → EXPECT 409
-    # curl http://127.0.0.1:8000/ready   (poll every 2s)
-    #  → "preparing" → ... → {"state": "ready"}
-    #
-    # npx @modelcontextprotocol/inspector http://127.0.0.1:8000/mcp
-    #  → connect → call read_file("README.rst", 1, 5)
-    #  → EXPECT cat-n sympy output
-    # curl -X POST http://127.0.0.1:8000/shutdown
-
 
 if __name__ == "__main__":
     main()
