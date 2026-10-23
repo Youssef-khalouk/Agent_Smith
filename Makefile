@@ -40,7 +40,7 @@ dump_mbpp:
 	cd moulinette && uv run python3 -m moulinette dump --benchmark mbpp --output ../tasks/mbpp_task.json
 
 dump_swebench:
-	cd moulinette && uv run python3 -m moulinette dump --benchmark swebench --output ../tasks/swebench_task.json
+	cd moulinette && uv r un python3-m moulinette dump --benchmark swebench --output ../tasks/swebench_task.json
 
 run_mbpp:
 	uv run python3 -m agent_mbpp --task-file tasks/mbpp_task.json --output output/mbpp_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio mcp_tools_mbpp.py --verbose
