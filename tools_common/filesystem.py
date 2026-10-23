@@ -129,6 +129,9 @@ def edit_file(workspace: LocalWorkspace, filepath: str,
         return (
             "Error: the operating system refused to write — the file may be "
             "read-only or protected")
+    except OSError as e:
+        # like a full disk
+        return f"Error: filesystem operation failed: {e}"
     context_start = max(1, line_number - 3)
     context_end = line_number + 3
     context = read_file(workspace, filepath, context_start, context_end)
