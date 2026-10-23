@@ -220,9 +220,6 @@ class ContainerManager:
             self.container = None
 
     def extract(self):
-        git_dir = Path(self.host_mount_path) / ".git"
-        if git_dir.exists():
-            return
         if self.container is not None:
             self.container.reload()
             if self.container.status == "running":
