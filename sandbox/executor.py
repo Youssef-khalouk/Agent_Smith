@@ -66,7 +66,7 @@ def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     real_import = builtins.__import__
     root = name.split(".")[0]
     if root not in SBX.authorized_imports:
-        raise ValueError("Import not allowed")
+        raise ValueError(f"Import {root} not allowed")
     return (real_import(name, globals=None, locals=None, fromlist=(), level=0))
 
 
@@ -100,6 +100,7 @@ def exec_code(tool_names: List[str], config_file: str | None, functions_keys: di
         "max": builtins.max,
         "sum": builtins.sum,
         "abs": builtins.abs,
+        "round": builtins.round,
         "isinstance": builtins.isinstance,
         "open": safe_open,
         "final_answer": final_answer,

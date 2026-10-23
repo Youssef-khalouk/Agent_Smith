@@ -499,3 +499,4 @@ Security note: Running generated Python code inside a process or using restricte
 
 ### Benchmark results and analysis:
 
+[benchmark report](BENCHMARK_REPORT.md)

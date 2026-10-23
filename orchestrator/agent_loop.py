@@ -4,6 +4,8 @@ from sandbox.sandbox import SandBox
 from .llm_providers import LLMProvider
 from .prompts import Prompts
 import time
+import threading
+from time import sleep
 
 
 class Agent:
@@ -17,7 +19,10 @@ class Agent:
                  logs: bool = False):
 
         self.logs = logs
-        if self.logs: print("\nInitalizeing Agent.")
+        if self.logs:
+            print("\nInitalizeing Agent.")
+            self.print_lock = threading.Lock()
+
         self.provider = provider
         self.sandbox = sandbox
         self.max_iterations: int = max_iterations
@@ -85,6 +90,22 @@ class Agent:
             steps=steps,
             error=error
         )
+    
+    def _print_thought(self, thought: str) -> None:
+        
+        def p_thought(thought):
+            with self.print_lock:
+                print("\t\t", end="", flush=True)
+                for word in thought.split(" "):
+                    print(word, end=" ", flush=True)
+                    sleep(0.1)
+                print("\n", flush=True)
+        thread = threading.Thread(
+            target=p_thought,
+            args=(thought,),
+            daemon=True,
+        )
+        thread.start()
 
     def run(self, task: MBPPTaskInput | SWEBenchTaskInput) -> SolutionOutput:
         if self.logs: print("\trunning agent loop:")
@@ -112,7 +133,8 @@ class Agent:
                 break
 
             extracted_code, thought = extract_code(result.text)
-            if self.logs and extracted_code: print("\t\t" + thought + "\n")
+            if self.logs and extracted_code: self._print_thought(thought)
+                
 
             if extracted_code is None:
                 observation = Prompts.no_python_code_found()
