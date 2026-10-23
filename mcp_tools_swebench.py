@@ -30,6 +30,7 @@ from tools_common.code_search import (
     find_references as find_references_impl,
 )
 MAX_CHARACTERS = 3000
+watch = False
 MCP = MCPServer("MCP-SERVER")
 last_activity_time = time.time()
 activity_lock = threading.Lock()
@@ -110,29 +111,21 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def read_file(filepath: str, start_line: int = 1,
                   end_line: int | None = None) -> str:
-        """Read a file's content with line numbers (cat -n style).
+        """Read a file with line numbers (1-based, inclusive).
 
-        Output format: "<line_number>: <line_content>" with right-aligned
-        line numbers. Lines are 1-based and both bounds are inclusive.
-        Output is capped at 200 lines per call; when truncated, the result
-        states the total line count and the start_line to use for the next
-        chunk.
+    Returns at most 200 lines per call. If truncated, reports the total
+    line count and the next start_line.
 
-        Always read a file (or a slice of it) before editing it.
+    Always read a file before editing it.
 
-        Args:
-            filepath: Path to the file, relative to the repository root
-                (absolute paths inside the workspace are also accepted).
-            start_line: First line to read (1-based, inclusive). Defaults
-                to 1.
-            end_line: Last line to read (inclusive). Use None (default)
-                to read to the end of the file.
+    Args:
+        filepath: Repository-relative path or absolute workspace path.
+        start_line: First line to read (default: 1).
+        end_line: Last line to read, or None for EOF (default: None).
 
-        Returns:
-            The numbered file content, or an error message starting with
-            "Error:" that describes the problem and which tool to call
-            next.
-        """
+    Returns:
+        Numbered content, or an "Error:" message with the next tool to use.
+    """
         note_activity()
         # Translate the schema-friendly None into the implementation's
         # -1 sentinel meaning "read to end of file".
@@ -145,27 +138,20 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
 
     @MCP.tool()
     def edit_file(filepath: str, old_str: str, new_str: str) -> str:
-        """Replace an exact string in a file with a new string.
+        """Replace an exact string in a file.
 
-        old_str must match the file content EXACTLY, including
-        indentation and whitespace — always read the file first and copy
-        the text precisely. If old_str appears more than once, the edit
-        is refused and all matching line numbers are reported: include
-        surrounding lines in old_str to make it unique. An empty new_str
-        deletes old_str.
+    old_str must match the file content EXACTLY (read file first). If ambiguous 
+    (multiple matches), it fails and reports lines; include surrounding context 
+    to make it unique. Empty new_str deletes old_str.
 
-        Args:
-            filepath: Path to the file to edit.
-            old_str: The exact string to replace (must be unique in the
-                file).
-            new_str: The replacement string (empty string deletes
-                old_str).
+    Args:
+        filepath: Target file path.
+        old_str: Exact string to replace (must be unique).
+        new_str: Replacement string (empty to delete).
 
-        Returns:
-            A success message with the edited line number and the
-            surrounding context, or an error message explaining the
-            failure and how to recover.
-        """
+    Returns:
+        Success message with edited line and context, or an error description.
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -175,24 +161,18 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def list_files(directory: str = ".", pattern: str = "*",
                    offset: int = 0) -> str:
-        """List files and directories in a directory matching a pattern.
+        """List files/directories matching a pattern (directories end with '/').
 
-        Directories are suffixed with "/". Entries are sorted. Results
-        are paginated: at most 100 entries per call; when more exist,
-        the result says so and you can use offset for the next page.
+    Sorted, paginated (max 100/call; use offset for next page).
 
-        Args:
-            directory: Directory to list, relative to the repository
-                root. Defaults to the root.
-            pattern: Glob pattern for entry names (e.g. "*.py").
-                Defaults to "*" (everything).
-            offset: Skip the first N matching entries (pagination).
-                Defaults to 0.
+    Args:
+        directory: Target directory, relative to repo root (default: ".").
+        pattern: Glob pattern filter (default: "*").
+        offset: Pagination offset to skip first N entries (default: 0).
 
-        Returns:
-            The matching entries, one per line, possibly with a
-            pagination hint — or an error message.
-        """
+    Returns:
+        One entry per line with pagination hint, or an error message.
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -201,26 +181,18 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
 
     @MCP.tool()
     def run_command(command: str, workdir: str = ".") -> str:
-        """Execute a shell command inside the container, in the
-        repository by default.
+        """Execute a shell command in the container.
 
-        Returns clearly labeled sections: stdout, stderr, and the exit
-        code. A non-zero exit code is a NORMAL result, not a tool
-        failure — read the output, it usually contains the information
-        you need (e.g. which tests failed). Commands are killed after a
-        timeout; any partial output printed before the kill is
-        preserved.
+    Non-zero exit codes are normal (check output for details like failed tests).
+    Commands time out and preserve partial output.
 
-        Args:
-            command: The shell command to run (pipes, &&, and
-                redirects are supported).
-            workdir: Working directory for the command, relative to the
-                repository root. Defaults to the repository root.
+    Args:
+        command: Shell command (supports pipes, &&, redirects).
+        workdir: Working directory relative to repo root (default: ".").
 
-        Returns:
-            The command's output with its exit code, or a timeout
-            report including partial output.
-        """
+    Returns:
+        Labeled stdout, stderr, and exit code, or a timeout report.
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -250,26 +222,16 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def search_code(pattern: str, file_pattern: str = "*.py",
                     offset: int = 0) -> str:
-        """Search file contents for a regex pattern (grep-like).
-
-        Searches all files whose names match file_pattern, recursively,
-        skipping hidden/VCS directories and binary files. Output format:
-        "/absolute/path/to/file.py:<line_number> <line_content>".
-        Results are paginated: at most 100 matches per call; use offset
-        for the next page.
-
-        Args:
-            pattern: Regular expression to search for (Python re
-                syntax).
-            file_pattern: Glob pattern selecting which file names to
-                search (e.g. "*.py"). Defaults to "*.py".
-            offset: Skip the first N matches (pagination). Defaults
-                to 0.
-
-        Returns:
-            Matching lines in the standard format with a total count,
-            or a "no matches" / "invalid regex" error message.
-        """
+        """Grep-like regex search recursively across files matching file_pattern (skips hidden/binary).
+    
+    Args:
+        pattern: Python regex pattern to search for.
+        file_pattern: Glob filter for filenames (default: "*.py").
+        offset: Pagination offset, number of matches to skip (max 100/call).
+        
+    Returns:
+        Formatted lines ("path:line line_content") with total count, or error message.
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -280,21 +242,17 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def search_function_or_class_definition_in_code(
                                     name: str, offset: int = 0) -> str:
-        """Find where a function or class is DEFINED, by exact name.
+        """Find exact definition of a function/class using AST (skips syntax errors).
 
-        Uses AST parsing, so it is precise (files with syntax errors
-        are skipped, not crashed on). Output format matches
-        search_code: "/absolute/path.py:<line_number> <line_content>".
+    Output matches search_code format ("path:line line_content"), paginated.
 
-        Args:
-            name: Exact function or class name (e.g. "simplify").
-            offset: Skip the first N matches (pagination). Defaults
-                to 0.
+    Args:
+        name: Exact function or class name (e.g., "simplify").
+        offset: Pagination offset to skip first N matches (default: 0).
 
-        Returns:
-            The definition lines found, or a "no matches" message
-            suggesting search_code for a broader search.
-        """
+    Returns:
+        Definition lines found, or "no matches" message (suggesting search_code).
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -305,27 +263,20 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def find_references(
             name: str, filepath: str, line: int, offset: int = 0) -> str:
-        """Find all USAGES of a symbol across the repository, excluding
-        its definition.
+        """Find all whole-word USAGES of a symbol across the repository (excluding definition).
 
-        The standard workflow: first locate the definition with
-        search_function_or_class_definition_in_code, then pass its
-        filepath and line here. Matches whole words only. Output format
-        matches search_code.
+    Workflow: find definition first, then pass its filepath and line. 
+    Output matches search_code format, paginated.
 
-        Args:
-            name: The function or class name to find references to.
-            filepath: Path to the file containing the definition
-                (relative or absolute inside the workspace).
-            line: Line number of the definition (1-based) — this line
-                is excluded from the results.
-            offset: Skip the first N matches (pagination). Defaults
-                to 0.
+    Args:
+        name: Function or class name to find.
+        filepath: Path to the definition file.
+        line: 1-based line number of the definition (excluded from results).
+        offset: Pagination offset to skip first N matches (default: 0).
 
-        Returns:
-            All usage lines across the repository (excluding the
-            definition line), or an error message.
-        """
+    Returns:
+        All usage lines across the repository or an error message.
+    """
         note_activity()
         if holder.workspace is None:
             return ("Error: server is not configured yet. "
@@ -384,8 +335,31 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         ]
 
 
+@MCP.resource("task://setup")
+def setup_docker_image() -> dict:
+    try:
+        docker_info = {
+            "image_name": os.environ["DOCKER_IMAGE"],
+            "eval_script": os.environ["EVAL_SCRIPT"],
+            "problem": os.environ["PROBLEM_STATEMENT"],
+            "instance_id": os.environ["INSTANCE_ID"],
+            "mount_path": os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{os.environ['INSTANCE_ID']}"),
+            "hints": os.environ.get("HINTS_TEXT", ""),
+        }
+        threading.Thread(
+            target=prepare_workspace, args=(holder, server_state),
+            kwargs=docker_info, daemon=True
+        ).start()
+        return {"state": "preparing", "error": ""}
+
+    except KeyError as e:
+        return {"state": "failed", "error": f"could not read environ {e.args[0]}."}
+    except Exception as e:
+        return {"state": "failed", "error": f"environ error: {e}."}
+
+
 @MCP.resource("task://ready")
-def is_docker_image_ready() -> str:
+def is_docker_image_ready() -> dict:
     return server_state.snapshot()
 
 
@@ -449,6 +423,7 @@ stop_event = threading.Event()
 # Creates/initializes a new event object.
 # light switch that multiple threads can look at, wait for, or flip.
 
+
 def prepare_workspace(
         holder, state: ServerState, image_name, mount_path,
         eval_script, problem, instance_id, hints):
@@ -466,7 +441,8 @@ def prepare_workspace(
                 "hints": hints
             }
             state.set("ready")
-            start_watchman()
+            if watch is True:
+                start_watchman()
             # his line freezes the background thread right there.
             # stop_event is never set to green (stop_event.set()), the
             # thread pauses forever inside the with block.
@@ -557,6 +533,12 @@ async def shutdown_endpoint(request):
     stop_event.set()
     # Changes the internal flag from False to True.
     # flip the master light switch to ON
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+            break
+        await asyncio.sleep(0.05)
+    return JSONResponse(server_state.snapshot())
 
 
 @asynccontextmanager
@@ -576,17 +558,10 @@ async def lifespan(app):
     # explicitly keep the MCP session manager alive using Starlette's lifespan
 
 
-def setup_docker_image(data):
-    threading.Thread(target=prepare_workspace, args=(
-        holder, server_state, data["docker_image"], data["mount_path"],
-        data["eval_script"], data["problem_statement"],
-        data["instance_id"], data["hints_text"]), daemon=True).start()
-
-    return JSONResponse({"state": "preparing"}, status_code=202)
-
-
 def main() -> None:
     if "--http" in sys.argv:
+        global watch
+        watch = True
         create_bound_tools(holder)
         # list of declarations that map URL paths to Python functions
         # and assign their HTTP methods (POST and GET).
@@ -612,76 +587,29 @@ def main() -> None:
         # Starts the Uvicorn http web server listening on port 8000
         # turns your custom web server and your MCP server into a
         # single, unified service running under one PID on port 8000
-
-        def handle_shutdown(signum, frame):
-            stop_event.set()          # wake the parked thread
-        signal.signal(signal.SIGTERM, handle_shutdown)
-        signal.signal(signal.SIGINT, handle_shutdown)   # Ctrl+C
-        uvicorn.run(app, host="0.0.0.0", port=8000)
-        return
-    elif "--stdio" in sys.argv:
         try:
-            hint = os.environ.get("HINTS_TEXT", "")
-            problem = os.environ["PROBLEM_STATEMENT"]
-            instance_id = os.environ["INSTANCE_ID"]
-            image_name = os.environ["DOCKER_IMAGE"]
-            mount_path = os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{instance_id}")
-            eval_script = os.environ["EVAL_SCRIPT"]
-        except KeyError as e:
-            raise ValueError(f"missing variable {e.args[0]}, make sure to pass all of them!!")
-
-        with DockerWorkspace(mount_path, image_name=image_name) as ws:
-            holder.eval_script = eval_script
-            holder.workspace = ws
-            holder.task_context = {
-                "problem_statement": problem,
-                "instance_id": instance_id,
-                "hints": hint
-            }
-            setup_docker_image({
-                "docker_image": image_name,
-                "eval_script": eval_script,
-                "problem_statement": problem,
-                "instance_id": instance_id,
-                "hints_text": hint,
-                "mount_path": mount_path
-            })
-            create_bound_tools(holder)
-            MCP.run()   # stdio is the default
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        finally:
+            stop_event.set()
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+                    break
+                time.sleep(0.05)
+        return
     else:
-        # there is no try block to raise error here !!!!!
-        raise ValueError(
-            "Connection type doesn't exist ! Try 'http' or 'stdio' or 'http-server'")
-
-    # --------------------STDIO-----------------
-    # use command to start server using stdio, opens the Web UI automatically:
-    # npx @modelcontextprotocol/inspector uv run python mcp_tools_swebench.py
-    # ------------------HTTP-------------------
-    # TERMINAL COMMANDS IN ORDER:
-    # terminal 1: uv run python mcp_tools_swebench.py --http-server
-    # terminal 2: npx @modelcontextprotocol/inspector http://localhost:8000/mcp
-    # ------------------ MORE HTTP-----------------
-    # Terminal 1:  uv run python mcp_tools_swebench.py --http-server
-    # Terminal 2 (in order):
-    # curl http://127.0.0.1:8000/ready
-    #  → EXPECT {"state": "unconfigured"}
-    # curl -X POST http://127.0.0.1:8000/setup \
-    #    -H "Content-Type: application/json" \
-    #    -d '{"docker_image":"swebench/sweb.eval.x86_64.pydata_1776_xarray-6461:latest",
-    #         "eval_script":"echo hello",
-    #         "instance_id":"pydata__xarray-6461",
-    #         "problem_statement": "bug in repo, keeps crashing",
-    #         "hints_text": "focus on search named functions"}'
-    #  → EXPECT 202 {"state": "preparing"}
-    # (repeat the POST immediately)
-    #  → EXPECT 409
-    # curl http://127.0.0.1:8000/ready   (poll every 2s)
-    #  → "preparing" → ... → {"state": "ready"}
-    #
-    # npx @modelcontextprotocol/inspector http://127.0.0.1:8000/mcp
-    #  → connect → call read_file("README.rst", 1, 5)
-    #  → EXPECT cat-n sympy output
-    # curl -X POST http://127.0.0.1:8000/shutdown
+        # 1. Register tools NOW — they exist, holder.workspace is still None,
+        #    and each tool gracefully answers "not configured yet" if called early.
+        create_bound_tools(holder)
+        try:
+            MCP.run()   # blocks until the client disconnects
+        finally:
+            stop_event.set()
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+                    break
+                time.sleep(0.05)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,9 @@ SBX: SandboxConfig = SandboxConfig()
 
 
 class SandBox():
-    def __init__(self, mcp_client: McpClient, config_file: str | None = None) -> None:
+    def __init__(self, mcp_client: McpClient, config_file: str | None = None, logs: bool = False) -> None:
+        self.logs = logs
+        if self.logs: print("\nInitalizeing sandbox.")
         self.config_file = config_file
         self.error: str | None = None
         self.is_ok: bool = True
@@ -29,15 +31,20 @@ class SandBox():
             "For MBPP, pass your solution code as a string. "
             "For SWE-bench, pass get_patch().\n"
         ]
+        self.tools_meta_data_no_description = [
+            "- def final_answer(answer: str) -> None:"
+        ]
         self.tool_names: List[str] = []
         self.functions_keys_list: Dict[str, List[str]] = {}
         self.tools: ListToolsResult = None
         self.server_params: Params = None
         self.executor: subprocess = None
         self._parse_mcp_tools()
+
         self._init_executor()
 
     def _init_executor(self) -> None:
+        if self.logs: print("\trunning subprocess executor.")
         self.executor = subprocess.Popen(
             ["unshare", "--user", 
              "--map-root-user", "--net", "--",
@@ -107,10 +114,10 @@ class SandBox():
         meta_data += f") -> "
         return_type = __extract_types("result", output_schema)
         meta_data += f"{return_type}: "
-        meta_data += f"Description: {tool.description}"
-        return meta_data
+        return meta_data, f"Description: {tool.description}"
 
     def _parse_mcp_tools(self):
+        if self.logs: print("\tgeting tools and parse them.")
         try:
             self.tools = self.mcp_client.get_tools()
         except Exception as e:
@@ -121,14 +128,11 @@ class SandBox():
             self.is_ok = False
             self.error = self.tools
             return
-        self.tools_meta_data_swe = [
-            "- def final_answer(answer: str) -> None: call this when the task is finished. "
-            "For MBPP, pass your solution code as a string. "
-            "For SWE-bench, pass get_patch().\n"
-        ]
         for tool in self.tools.tools:
             self.tool_names.append(tool.name)
-            self.tools_meta_data.append(self._extract_data(tool))
+            tool_data, description = self._extract_data(tool)
+            self.tools_meta_data.append(tool_data + description)
+            self.tools_meta_data_no_description.append(tool_data)
 
     def get_tools_metadata(self) -> List[str]:
         return(self.tools_meta_data)

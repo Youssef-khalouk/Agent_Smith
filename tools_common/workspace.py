@@ -239,6 +239,8 @@ class LocalWorkspace():
             return ("The search pattern cannot be empty. "
                     "Provide a regex pattern to search for.")
         # check if llm provided broken regex: "def("
+        # parses it upfront and stores it in memory
+        # rejex_obj is like a pointer to it so we dont re-parse again
         # makes searching easier using regex object
         regex_obj = re.compile(pattern)
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
@@ -453,16 +455,3 @@ class DockerWorkspace:
             raise PathOutsideRootError("outside root")
         return self.container_manager.exec(command, folder_path, timeout)
 
-
-# with DockerWorkspace("/home/ouchouir/agent") as dw:
-#     print(dw.container_manager.container.status)
-# print(dw.container_manager.container)
-# dw = DockerWorkspace("/home/ouchouir/agent")
-# dw.start()
-# first = dw.container_manager.container.id
-# dw.start()
-# second = dw.container_manager.container.id
-# assert first == second, "start() must be idempotent — same container!"
-# dw.die()
-# ----------------------------------------
-# # run with uv run python -m tools_common.workspace

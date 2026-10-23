@@ -24,7 +24,7 @@ def parse_arguments():
     parser.add_argument("--mcp-stdio", default=None, help="MCP server command over stdio (default: local http).")
     parser.add_argument("--mcp-http", default=None, help="MCP server command over http.")
     parser.add_argument("--sandbox-config", default=None)
-    # parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -52,29 +52,32 @@ def agent_swe_bench():
 
         verify_file(args.task_file)
 
-        api_keys = str(os.getenv("OPENROUTER_API_KEYS")).split(",")
-        if not api_keys: raise Exception("No api keys provided in .env")
+        api_keys = str(os.getenv("OPENROUTER_API_KEYS", "")).split(",")
 
         with open(args.task_file, "r") as file:
             swe_bench_task = SWEBenchTaskInput.model_validate_json(file.read())
         
         docker_image = DockerImage.model_validate(swe_bench_task.model_dump())
 
+        provider = LLMProvider(api_url=args.provider_url, 
+                               model_name=args.model_name,
+                               api_keys=api_keys,
+                               logs=args.verbose)
+
         mcp_client = McpClient(args=args, docker_image=docker_image)
         if not mcp_client.is_ok: raise Exception(mcp_client.error)
 
-        sandbox = SandBox(mcp_client=mcp_client, config_file=args.sandbox_config)
-
-        provider = LLMProvider(api_url=args.provider_url, 
-                               api_keys=api_keys,
-                               model_name=args.model_name)
+        sandbox = SandBox(mcp_client=mcp_client,
+                          config_file=args.sandbox_config,
+                          logs=args.verbose)
         
         agent = Agent(  provider=provider,
                         sandbox=sandbox,
                         max_iterations=30,
                         max_input_tokens=300000,
                         max_output_tokens=10000,
-                        timeout_seconds=900)
+                        timeout_seconds=900,
+                        logs=args.verbose)
 
         solution: SolutionOutput = agent.run(swe_bench_task)
 
@@ -84,7 +87,9 @@ def agent_swe_bench():
         with open(output_path, "w", encoding="utf-8") as file:
             file.write(solution.model_dump_json(indent=4))
         
-        print_conversation(agent.messages) # this is for debugg stuf remove later.
+        if args.verbose: print_conversation(agent.messages)
+
+        print("Done.")
 
     except Exception as e:
         print(f"Error: {e}")

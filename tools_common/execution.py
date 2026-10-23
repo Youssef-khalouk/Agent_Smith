@@ -4,35 +4,11 @@ from tools_common.workspace import (
 )
 
 CAP_NUMBER = 2000
-TIMEOUT = 90  # got to change it to 60 or 90 later
+TIMEOUT = 60  # got to change it to 60 or 90 later
 
 
 def run_command(workspace: LocalWorkspace, command: str,
                 workdir: str = ".") -> str:
-    """Executes a bash shell command within a specified workspace directory.
-
-    Runs the shell command with execution timeout constraints and caps long
-    stdout or stderr output streams to the tail end of the logs. Returns full
-    execution details including command status, exit codes, and output
-    captures.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing process
-            execution and root path validation.
-        command (str): The shell command string to execute.
-        workdir (str, optional): Relative or absolute path to the working
-            directory. Defaults to ".".
-
-    Returns:
-        str: A formatted string containing execution details (exit code,
-        stdout, stderr, timeout warnings), or an error message if the path is
-        invalid or outside the workspace root.
-
-    Raises:
-        Catches workspace process and path exceptions (`PathOutsideRootError`,
-        `FileNotFoundError`, `NotADirectoryError`) internally and returns
-        descriptive error strings.
-    """
     # workdir="." = workspace root
     stdout_truncated = False
     stderr_truncated = False
@@ -123,23 +99,6 @@ def run_command(workspace: LocalWorkspace, command: str,
 
 
 def get_patch(workspace: LocalWorkspace) -> str:
-    """Generates the git diff patch for all changes made in the workspace.
-
-    Registers untracked files with intent-to-add (`git add -N .`) so new files
-    appear in the unified diff output, ignoring permission-mode changes.
-
-    Args:
-        workspace (LocalWorkspace): The workspace environment managing process
-            execution and git repository state.
-
-    Returns:
-        str: The formatted unified git diff patch, or an actionable error or
-        warning message if no changes exist or git operations fail.
-
-    Raises:
-        Catches subshell command output internally and returns descriptive
-        error strings on non-zero exit codes.
-    """
     # Register untracked files as "intent to add".
     # This makes new files appear in `git diff` without fully staging them.
     # ".": current directory

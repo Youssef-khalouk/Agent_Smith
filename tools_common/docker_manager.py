@@ -220,8 +220,6 @@ class ContainerManager:
             self.container = None
 
     def extract(self):
-        # A wipe is only legal at BIRTH — never while a live container
-        # is using this mount. Refuse instead of destroying active work.
         if self.container is not None:
             self.container.reload()
             if self.container.status == "running":
@@ -257,26 +255,3 @@ class ContainerManager:
             raise RuntimeError(
                 f"Docker extraction failed: {stderr_text}") from err
 
-
-# if __name__ == "__main__":
-#     manager = ContainerManager("swebench/sweb.eval.x86_64.sympy_1776_sympy-14711", "/home/ouchouir/agent")
-#     print("\n")
-#     print(manager.pull())
-#     print("\n")
-#     container = manager.start()
-#     print()
-#     print(manager.exec("echo 'hello from container'"))
-#     print()
-#     print(manager.exec("ls /non_existent_directory_123"))
-#     print()
-#     print(manager.exec(
-#         "mkdir -p /tmp/subshell_test && cd /tmp/subshell_test && pwd"))
-#     print()
-#     print(manager.exec("sleep 10", timeout=2))
-#     manager.die()
-#     with manager:
-#         manager.die()
-#         manager.start()
-#         raise ValueError("CRASH!")
-#         print("Inside the block: Container is running and ready!")
-#     manager.die()

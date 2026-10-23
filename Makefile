@@ -40,13 +40,16 @@ dump_mbpp:
 	cd moulinette && uv run python3 -m moulinette dump --benchmark mbpp --output ../tasks/mbpp_task.json
 
 dump_swebench:
-	cd moulinette && uv run python3 -m moulinette dump --benchmark swebench --output ../tasks/swebench_task.json
+	cd moulinette && uv r un python3-m moulinette dump --benchmark swebench --output ../tasks/swebench_task.json
 
 run_mbpp:
-	uv run python3 -m agent_mbpp --task-file tasks/mbpp_task.json --output output/mbpp_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio mcp_tools_mbpp.py
+	uv run python3 -m agent_mbpp --task-file tasks/mbpp_task.json --output output/mbpp_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio mcp_tools_mbpp.py --verbose
 
 run_swebench:
-	uv run python3 -m agent_swebench --task-file tasks/swebench_task.json --output output/swebench_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio "mcp_tools_swebench.py"
+	uv run python3 -m agent_swebench --task-file tasks/swebench_task.json --output output/swebench_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-http http://localhost:8000/ --verbose
+
+run_stdio_swebench:
+	uv run python3 -m agent_swebench --task-file tasks/swebench_task.json --output output/swebench_solution.json --model-name=$(MODEL_NAME) --provider-url=$(API_URL) --mcp-stdio mcp_tools_swebench.py --verbose
 
 validate_mbpp:
 	cd moulinette && uv run python3 -m moulinette validate --benchmark mbpp --task_file ../tasks/mbpp_task.json  --solution_file ../output/mbpp_solution.json
@@ -85,17 +88,6 @@ fclean: clean
 
 #######################################################
 
-
-test_ai:
-	uv run python -m tests.test_ai
-
-test_sbx:
-	uv run python -m tests.test_sandbox
-
-
-test_orchestrator:
-	uv run python -m tests.test_orchestrator
-
 start_mcp_server_http:
 	uv run python3 mcp_tools_swebench.py --http >> log.txt 2>&1 &
 
@@ -110,16 +102,6 @@ stop_mbpp_server:
 
 stop_mcp_server:
 	pkill -9 -f "mcp_tools_swebench"
-
-test_client:
-	uv run python3 -m tests.test_tools
-
-test_tools:
-	uv run python3 -m tests.test_tools
-
-
-test_tools_in_container:
-	uv run python3 -m tests.test_tools_with_docker
 
 
 
