@@ -1,4 +1,4 @@
-*his project has been created as part of the 42 curriculum by rel-ouan, ouchouir, ykhalouk*
+*this project has been created as part of the 42 curriculum by rel-ouan, ouchouir, ykhalouk*
 
 
 ## Description
@@ -213,17 +213,6 @@ Configuration arrives per transport:
 
 Both transports are served from one process: the FastMCP streamable app is mounted at `/mcp` inside a Starlette application that also carries the custom endpoints, with the MCP session manager kept alive through the application lifespan.
 
-### Testing
-
-The tools layer is covered by roughly 140 checks across four files:
-
-- `tests/test_tools.py` — the local suite: every tool, every error path, exact output formats, pagination, path security, binary files, permission refusals (~65 checks)
-- `tests/test_tools_with_docker.py` — the duel: the same tool calls against a real DockerWorkspace — the ceremony lifecycle (extraction, restart freshness, double-start identity, crash cleanup, the reaper), the door (timeouts with partial output, workdir security, the escape-containment proof: a command that escapes the workspace on LocalWorkspace is contained by the chamber on DockerWorkspace), file tools on the real repo, run_tests against the real eval script, and the patch round-trip (edit through the window → git through the door → patch applied to a fresh world)
-- `tests/dummy_mcp_server.py` — a minimal two-tool MCP server over both transports; the rehearsal partner for the exam's unknown-MCP-server test
-
-### Benchmark Results and Analysis
-
-To be filled after the benchmark runs (5 models × 3 SWE-bench tasks, per the subject's V.7 requirements): results table, provider reliability, intermediary metrics, the ablation study, and data-driven conclusions. The backing solution.json files are stored in `benchmark_runs/` (tracked in git).
 
 ### Running my components
 
@@ -242,12 +231,6 @@ curl -X POST http://127.0.0.1:8000/setup -H "Content-Type: application/json" \
 curl -X POST http://127.0.0.1:8000/shutdown
 ```
 
-```bash
-# the test suite
-make test_tools               # local, no Docker needed
-make test_tools_in_container  # requires the Docker daemon
-```
-
 ### Resources
 
 #### References
@@ -260,9 +243,11 @@ make test_tools_in_container  # requires the Docker daemon
 - [unshare](https://man7.org/linux/man-pages/man1/unshare.1.html) - Explanation of the unshare command line and how it works
 - [exec() python function](https://www.geeksforgeeks.org/python/exec-in-python/) - Explanation of the exec() python function.
 
-### AI usage disclosure (my components)
+### AI usage
 
-AI tools were used throughout as a learning partner and code reviewer, not as a code generator. The working method was: research a concept, implement it independently, then submit it for review — bugs and design flaws found in review were fixed by hand, and every design decision (the workspace abstraction, the window/door split, the lifecycle guarantees, the wipe-on-birth policy, the token-budget-driven tool philosophy) can be explained and defended by its author. All code in my components (tools_common/, mcp_tools_swebench.py, the test files) was written by me. AI was additionally used for explaining unfamiliar concepts (MCP, Docker internals, async lifespans) and drafting project-management artifacts (the Jira backlog).
+AI tools were used throughout the project as learning partners and code reviewers, rather than as code generators. The team's working method was to research unfamiliar concepts, implement solutions independently, and then submit the implementations for review. Bugs and design flaws identified during reviews were addressed by the team, and the design decisions behind the project were developed, understood, and can be explained and defended by the team.
+
+All code in the team's components was written by the team. AI tools were additionally used to explain unfamiliar concepts such as MCP, Docker internals, and to help draft project-management artifacts, including the Jira backlog.
 
 
 ## Additional Sections:
