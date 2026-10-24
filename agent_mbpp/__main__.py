@@ -52,7 +52,7 @@ def agent_mbpp():
 
         verify_file(args.task_file)
 
-        api_keys = str(os.getenv("OPENROUTER_API_KEYS", "")).split(",")
+        api_keys = str(os.getenv("API_KEYS", "")).split(",")
 
         with open(args.task_file, "r") as file:
             mbpp_task = MBPPTaskInput.model_validate_json(file.read())

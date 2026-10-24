@@ -1,9 +1,7 @@
-# docker pull python:3.11-slim
-
 -include .env
 export
 
-CONNECTION_TYPE ?= "http"
+CONNECTION_TYPE ?= http
 
 ifeq ($(OS),Windows_NT)
 	# Window
@@ -26,7 +24,9 @@ else
 	endif
 endif
 
-####################################################
+pull_python:
+	docker pull python:3.11-slim
+
 install:
 	uv sync
 
@@ -88,19 +88,16 @@ fclean: clean
 
 #######################################################
 
-start_mcp_server_http:
+start_swebench_mcp_server_http:
 	uv run python3 mcp_tools_swebench.py --http >> log.txt 2>&1 &
 
-start_mbpp_server_http:
+start_mbpp_mcp_server_http:
 	uv run python3 mcp_tools_mbpp.py --http >> log.txt 2>&1 &
-
-start_mcp_server_stdio:
-	uv run python3 mcp_tools_swebench.py --stdio
 
 stop_mbpp_server:
 	pkill -9 -f "mcp_tools_mbpp"
 
-stop_mcp_server:
+stop_swebench_server:
 	pkill -9 -f "mcp_tools_swebench"
 
 
@@ -108,19 +105,28 @@ stop_mcp_server:
 help:
 	@echo "Available commands:"
 	@echo ""
-	@echo "  make install          		Install/sync project dependencies"
-	@echo "  make download         		Download Moulinette"
+	@echo "  make install               Install/sync project dependencies"
+	@echo "  make download              Download Moulinette"
+	@echo "  make pull_python           Pull the Python 3.11 slim Docker image"
 	@echo ""
-	@echo "  make dump_mbpp        		Dump an MBPP task"
-	@echo "  make dump_swebench    		Dump a SWE-bench task"
+	@echo "  make dump_mbpp             Dump MBPP tasks"
+	@echo "  make dump_swebench         Dump SWE-bench tasks"
 	@echo ""
-	@echo "  make run_mbpp         		Run Agent Smith on MBPP"
-	@echo "  make run_swebench     		Run Agent Smith on SWE-bench"
+	@echo "  make run_mbpp              Run Agent Smith on MBPP"
+	@echo "  make run_swebench          Run Agent Smith on SWE-bench using HTTP"
+	@echo "  make run_stdio_swebench    Run Agent Smith on SWE-bench using stdio"
 	@echo ""
-	@echo "  make validate_mbpp    		Validate the MBPP solution"
-	@echo "  make validate_swebench		Validate the SWE-bench solution"
+	@echo "  make start_swebench_mcp_server_http  Start the SWE-bench MCP HTTP server"
+	@echo "  make start_mbpp_mcp_server_http     Start the MBPP MCP HTTP server"
+	@echo "  make stop_swebench_server            Stop the SWE-bench MCP server"
+	@echo "  make stop_mbpp_server                Stop the MBPP MCP server"
 	@echo ""
-	@echo "  make mbpp             		Run the complete MBPP pipeline"
-	@echo "  make swebench         		Run the complete SWE-bench pipeline"
+	@echo "  make validate_mbpp         Validate the MBPP solution"
+	@echo "  make validate_swebench     Validate the SWE-bench solution"
 	@echo ""
-	@echo "  make clean            		Remove Python cache files"
+	@echo "  make mbpp                  Run the complete MBPP pipeline"
+	@echo "  make swebench              Run the complete SWE-bench pipeline"
+	@echo ""
+	@echo "  make clean                 Remove Python cache files"
+	@echo "  make fclean                Remove caches, output, tasks, and logs"
+	@echo "  make help                  Display this help message"
