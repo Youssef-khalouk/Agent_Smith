@@ -26,11 +26,7 @@
 | command-a-plus-05-2026 | cohere | 262 | True | 1 | 558 | 2094 | 16.8 |
 | command-a-plus-05-2026 | cohere | 268 | False | 1 | 491 | 2232 | 17.2 |
 | command-a-plus-05-2026 | cohere | 142 | True | 1 | 588 | 2044 | 12.1 |
-| command-r7b-12-2024 | cohere | 462 | False | 5 | 7025 | 393 | 6.6 |
-| command-r7b-12-2024 | cohere | 237 | False | 6 | 6624 | 1000 | 13.0 |
-| north-mini-code | cohere | 88 | False | 4 | 3351 | 3188 | 38.6 |
-| north-mini-code | cohere | 17 | False | 1 | 487 | 1723 | 21.6 |
-| north-mini-code | cohere | 463 | False | 1 | 521 | 2443 | 9.3 |
+
 
 
 

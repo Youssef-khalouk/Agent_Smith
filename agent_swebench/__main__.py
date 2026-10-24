@@ -13,12 +13,6 @@ from orchestrator import LLMProvider
 
 load_dotenv()
 
-def save_benchmark(out):
-    
-
-    bench = f"\n| {out.steps[0].model_name} | {out.steps[0].api_url} | {out.task_id} | {str(out.success)} | {out.iterations} | {out.total_input_tokens} | {out.total_output_tokens} | {out.total_time_seconds:.1f} |"
-    with open("BENCHMARK_REPORT.md", "a") as file:
-        file.write(bench)
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -86,7 +80,6 @@ def agent_swe_bench():
                         logs=args.verbose)
 
         solution: SolutionOutput = agent.run(swe_bench_task)
-        save_benchmark(solution)
 
         output_path = Path(args.output)
 
