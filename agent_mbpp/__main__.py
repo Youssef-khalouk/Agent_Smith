@@ -15,8 +15,17 @@ load_dotenv()
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    """
+    Parse and return command-line arguments for the MBPP agent.
 
+    Configure arguments for the task input file, output file, language model,
+    provider API endpoint, MCP connection, sandbox configuration, and verbose
+    logging.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments.
+    """
+    parser = argparse.ArgumentParser()
     parser.add_argument("--task-file", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--model-name", required=True, help="Model id.")
@@ -31,6 +40,19 @@ def parse_arguments():
 
 
 def print_conversation(messages):
+    """
+    Write the agent's conversation history to a text file.
+
+    Format each message with its role and content, then save the complete
+    conversation to messages.txt in the current working directory.
+
+    Args:
+        messages: Sequence of conversation messages containing role and content
+            fields.
+
+    Returns:
+        None
+    """
     content = ""
     this = "====================================="
     for d in messages:
@@ -41,12 +63,38 @@ def print_conversation(messages):
 
 
 def verify_file(file_path: str) -> None:
+    """
+    Validate that the specified path exists and refers to a regular file.
+
+    Args:
+        file_path (str): Path to the file to validate.
+
+    Raises:
+        Exception: If the path does not exist or does not refer to a file.
+
+    Returns:
+        None
+    """
     path: Path = Path(file_path)
     if not path.exists(): raise Exception(f"Error: file '{path}' not found.")
     if not path.is_file(): raise Exception(f"Error: file '{path}' is not a file.")
 
 
 def agent_mbpp():
+    """
+    Run the MBPP code-generation agent and save its solution.
+
+    Parse command-line arguments, validate and load the MBPP task, initialize
+    the language model provider, MCP client, sandbox, and agent, then execute
+    the task. Save the resulting solution as formatted JSON and optionally
+    write the conversation history when verbose logging is enabled.
+
+    Print an error message and exit with a nonzero status if execution fails.
+    Attempt to close the MCP client and sandbox during cleanup.
+
+    Returns:
+        None
+    """
     try:
         args = parse_arguments()
 

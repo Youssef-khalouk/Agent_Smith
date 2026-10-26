@@ -18,6 +18,9 @@ MAIN_STDOUT = sys.stdout
 MAIN_STDIN = sys.stdin
 
 class Tool_Fieled(Exception):
+    """
+    Represent an error returned when an MCP tool call fails.
+    """
     ...
 
 
@@ -25,6 +28,23 @@ SBX: SandboxConfig = SandboxConfig()
 
 
 def call_mcp_tool(function_name: str, kwargs: dict):
+    """
+    Send an MCP tool-call request to the main process and return its result.
+
+    Serialize the tool name and arguments as JSON, write the request to the
+    original standard output, and read the response from the original standard
+    input. Raise Tool_Fieled if the response indicates a failure.
+
+    Args:
+        function_name (str): Name of the MCP tool to execute.
+        kwargs (dict): Arguments passed to the MCP tool.
+
+    Returns:
+        The result returned by the MCP tool.
+
+    Raises:
+        Tool_Fieled: If the MCP tool call fails.
+    """
     request = {
         "type": "tool_call",
         "name": function_name,
@@ -39,6 +59,19 @@ def call_mcp_tool(function_name: str, kwargs: dict):
 
 
 def execute_tool(function_name: str, functions_keys) -> callable:
+    """
+    Create a callable wrapper for invoking an MCP tool through the main process.
+
+    Map positional arguments to their corresponding parameter names and forward
+    the resulting arguments to call_mcp_tool.
+
+    Args:
+        function_name (str): Name of the MCP tool to invoke.
+        functions_keys: Mapping of tool names to their ordered parameter names.
+
+    Returns:
+        callable: A function that invokes the specified MCP tool.
+    """
     def func(*args, **kwargs):
         func_args = functions_keys.get(function_name, [])
         for i, key in enumerate(func_args):
@@ -51,6 +84,23 @@ def execute_tool(function_name: str, functions_keys) -> callable:
 
 
 def safe_open(file, mode="r", *args, **kwargs):
+    """
+    Open a file only if its resolved path is inside an authorized directory.
+    Resolve the requested path and compare it against the configured allowed
+    directories before delegating to the built-in open function.
+
+    Args:
+        file: Path of the file to open.
+        mode (str): File access mode. Defaults to "r".
+        *args: Additional positional arguments for builtins.open.
+        **kwargs: Additional keyword arguments for builtins.open.
+
+    Returns:
+        The file object returned by builtins.open.
+
+    Raises:
+        PermissionError: If the path is outside all authorized directories.
+    """
     path = Path(file).resolve()
     for directory in SBX.allowed_directories:
         allowed = Path(directory).resolve()
@@ -63,6 +113,25 @@ def safe_open(file, mode="r", *args, **kwargs):
 
 
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    """
+    Restrict module imports to authorized root modules.
+
+    Check the root module name against the configured authorized imports before
+    delegating the import operation to Python's built-in import mechanism.
+
+    Args:
+        name (str): Name of the module to import.
+        globals: Global namespace for the import operation.
+        locals: Local namespace for the import operation.
+        fromlist (tuple): Names to import from the requested module.
+        level (int): Import level, where zero indicates an absolute import.
+
+    Returns:
+        The imported module.
+
+    Raises:
+        ValueError: If the root module is not authorized.
+    """
     real_import = builtins.__import__
     root = name.split(".")[0]
     if root not in SBX.authorized_imports:
@@ -71,6 +140,18 @@ def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 
 def final_answer(value: str) -> str:
+    """
+    Send the final answer from the worker process to the main process.
+
+    Serialize the supplied value as a JSON message and write it to the original
+    standard output so the main process can identify the final response.
+
+    Args:
+        value (str): Final answer to send.
+
+    Returns:
+        str: A confirmation message indicating that the function was called.
+    """
     output = {
         "type": "final_answer",
         "value": value
@@ -79,7 +160,24 @@ def final_answer(value: str) -> str:
     return "final answer is called, done."
 
 def exec_code(tool_names: List[str], config_file: str | None, functions_keys: dict[str, list[str]]) -> str:
+    """
+    Execute generated Python code in a restricted execution environment.
 
+    Configure the sandbox, construct a namespace containing approved built-ins
+    and MCP tool wrappers, and continuously read JSON requests from standard
+    input. Execute submitted code while capturing standard output and standard
+    error, then return the results as JSON messages.
+
+    Args:
+        tool_names (List[str]): Names of MCP tools available to executed code.
+        config_file (str | None): Optional path to the sandbox configuration file.
+        functions_keys (dict[str, list[str]]): Mapping of tool names to their
+            ordered parameter names.
+
+    Returns:
+        str: The function is intended to run continuously and does not normally
+            return a value.
+    """
     configurate_sandbox(config_file, SBX)
     name_space = {
         "sorted": builtins.sorted,
@@ -139,6 +237,15 @@ def exec_code(tool_names: List[str], config_file: str | None, functions_keys: di
 
 
 def main() -> None:
+    """
+    Start the command-line interface for executing sandbox code.
+
+    Register exec_code with Python Fire so callers can configure and launch
+    the execution loop through command-line arguments.
+
+    Returns:
+        None
+    """
     fire.Fire({"exec": exec_code})
 
 

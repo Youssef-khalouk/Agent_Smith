@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 
 class SandboxConfig(BaseModel):
     """Sandbox configuration for student solutions.
-
     Uses allowlist approach: only imports in authorized_imports are allowed.
     Everything else is blocked by default.
     """
