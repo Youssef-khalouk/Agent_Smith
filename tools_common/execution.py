@@ -9,6 +9,8 @@ TIMEOUT = 60  # got to change it to 60 or 90 later
 
 def run_command(workspace: LocalWorkspace, command: str,
                 workdir: str = ".") -> str:
+    """Run a shell command in the workspace with a timeout and
+    truncated output."""
     # workdir="." = workspace root
     stdout_truncated = False
     stderr_truncated = False
@@ -99,6 +101,8 @@ def run_command(workspace: LocalWorkspace, command: str,
 
 
 def get_patch(workspace: LocalWorkspace) -> str:
+    """Generate a Git diff of workspace changes, including untracked files and
+    ignoring permission-mode changes."""
     # Register untracked files as "intent to add".
     # This makes new files appear in `git diff` without fully staging them.
     # ".": current directory

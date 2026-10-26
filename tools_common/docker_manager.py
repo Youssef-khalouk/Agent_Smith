@@ -1,6 +1,6 @@
 # This file has exactly one job: manage the lifecycle of the chamber.
 import subprocess
-import docker
+import docker  # type: ignore[import-untyped]
 import uuid
 import shutil
 from pathlib import Path
@@ -14,9 +14,13 @@ import shlex  # library used to safely quote strings for Unix command lines.
 
 
 class ContainerManager:
+    """Manage Docker images and containers for executing commands in an
+    isolated workspace."""
     # docker client lets Python gives Docker orders(commands)
     # ContainerManager -> Docker client -> Docker daemon
     def __init__(self, image_name, host_mount_path):
+        """Initialize the Docker client and configure the image and host
+        mount path."""
         self.image_name = image_name
         self.host_mount_path = Path(host_mount_path).resolve()
         # store running container made by start() to be usd by exec() later
@@ -28,12 +32,14 @@ class ContainerManager:
         # gotta catch Docker daemon is not connected
 
     def __enter__(self):
+        """Return the manager for use in a with statement."""
         # gets assigned to the variable after the as keyword in a with
         # statement.
         return self
     # these methods turn the class into python context manager
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Remove the managed container when leaving a with statement."""
         self.die()  # Automatically executes when leaving the with block
         # (whether the code inside finishes normally or crashes with
         # an exception).
@@ -42,6 +48,7 @@ class ContainerManager:
     # Not lazily at first tool call
 
     def pull(self):
+        """Pull the Docker image if it is not already available locally."""
         exists = False
         images = self.client.images.list()
         for image in images:
@@ -55,6 +62,8 @@ class ContainerManager:
         return
 
     def start(self):
+        """Create and start a Docker container with the workspace mounted
+        at /testbed."""
         if self.container is not None:
             self.container.reload()
             if self.container.status == "running":
@@ -93,6 +102,8 @@ class ContainerManager:
         return container
 
     def exec(self, command, work_dir, timeout=60):
+        """Execute a command inside the running container and return its
+        output, exit code, and timeout status."""
         # the whole purpose of exec() is to take the command inside the tool
         # run_command, intercepts it everytime and runs it inside the container
         if self.container is None:
@@ -209,6 +220,7 @@ class ContainerManager:
         }
 
     def die(self):
+        """Forcefully remove the managed container and clear its reference."""
         if self.container is None:
             return
         try:
@@ -220,6 +232,8 @@ class ContainerManager:
             self.container = None
 
     def extract(self):
+        """Extract the image's /testbed contents to the host mount path
+        when the container is not running."""
         if self.container is not None:
             self.container.reload()
             if self.container.status == "running":
@@ -254,4 +268,3 @@ class ContainerManager:
             stderr_text = err.stderr.decode() if err.stderr else str(err)
             raise RuntimeError(
                 f"Docker extraction failed: {stderr_text}") from err
-

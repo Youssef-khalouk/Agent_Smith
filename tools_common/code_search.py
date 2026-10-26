@@ -8,6 +8,7 @@ def search_code(
             file_pattern: str = "*.py",
             offset: int = 0,
         ) -> str:
+    """Search files for regex matches and return paginated results."""
     formatted_result = []
     try:
         capped_matches, total_matches = workspace.search_files_for_pattern(
@@ -49,6 +50,7 @@ def search_function_or_class_definition_in_code(
             file_pattern: str = "*.py",
             offset: int = 0,
         ) -> str:
+    """Find function, async function, and class definitions by name."""
     formatted_result = []
     try:
         capped_matches, total_matches = (
@@ -86,6 +88,7 @@ def find_references(
             line: int,
             offset: int = 0,
         ) -> str:
+    """Find textual references to a name, excluding its definition line."""
     # name: what we're looking for, e.g. "calculate"
     # filepath: which file, e.g. "src/math.py"
     # line: the definition line that should be excluded

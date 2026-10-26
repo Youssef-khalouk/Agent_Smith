@@ -22,6 +22,7 @@ MAX_LINE_LIMIT = 200
 
 
 def format_cat_n(lines: list[str], start_line_num: int = 1) -> str:
+    """Format lines with right-aligned line numbers."""
     formatted_lines = []
     for num, line in enumerate(lines, start=start_line_num):
         formatted_lines.append(f"{num:>6}: {line}")
@@ -30,6 +31,7 @@ def format_cat_n(lines: list[str], start_line_num: int = 1) -> str:
 
 def read_file(workspace: LocalWorkspace, filepath: str, start_line: int = 1,
               end_line: int = -1):
+    """Read a file's text with line numbers and pagination."""
     try:
         raw_text = workspace.read_file_text(filepath)
     except FileNotFoundError:
@@ -95,6 +97,7 @@ def read_file(workspace: LocalWorkspace, filepath: str, start_line: int = 1,
 
 def edit_file(workspace: LocalWorkspace, filepath: str,
               old_str: str, new_str: str) -> str:
+    """Replace a unique text occurrence and return the surrounding context."""
     if old_str == new_str:
         return "Error: new_str is identical to old_str. No changes made."
     try:
@@ -142,6 +145,7 @@ def edit_file(workspace: LocalWorkspace, filepath: str,
 
 def list_files(workspace: LocalWorkspace, directory: str = ".",
                pattern: str = "*", offset: int = 0) -> str:
+    """List matching directory entries with pagination and error handling."""
     if not pattern or not pattern.strip():
         pattern = "*"
     try:
