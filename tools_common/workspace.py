@@ -18,10 +18,12 @@ LINE_CAP = 2000
 
 
 class StringNotFoundError(Exception):
+    """Raised when the text to replace is not found in the file."""
     pass
 
 
 class MultipleMatchesError(Exception):
+    """Raised when the text to replace appears more than once."""
     def __init__(self, line_numbers, old_str):
         self.line_numbers = line_numbers
         self.old_str = old_str
@@ -31,15 +33,19 @@ class MultipleMatchesError(Exception):
 
 
 class EmptyStringError(Exception):
+    """Raised when the search string is empty."""
     pass
 
 
 class PathOutsideRootError(Exception):
+    """Raised when a requested path escapes the workspace root."""
     pass
 
 
 class LocalWorkspace():
+    """Provides safe file operations within a local workspace."""
     def __init__(self, root_dir: str):
+        """Initialize the workspace with an absolute root directory."""
         # Path(root_dir) converts root_dir into a Path object.
         # This gives us access to Path methods such as .resolve().
         # .resolve() converts the path into an absolute path.
@@ -47,6 +53,7 @@ class LocalWorkspace():
         self.root_dir = Path(root_dir).resolve()
 
     def read_file_text(self, relative_path: str) -> str:
+        """Read and return a file's text content."""
         # Combine the root directory with the requested relative path,
         # then resolve it to get the actual absolute path.
         target_file_path = (self.root_dir / relative_path).resolve()
@@ -69,6 +76,7 @@ class LocalWorkspace():
         return content
 
     def atomic_write(self, target_path: Path, content: str) -> None:
+        """Safely replace a file using a temporary file."""
         parent_folder = Path(target_path).parent
         # Create a temporary file in the same directory as the target.
         # Create and open a temporary file in the same directory as the target.
@@ -102,6 +110,7 @@ class LocalWorkspace():
             raise
 
     def edit_file_text(self, filepath: str, old_str: str, new_str: str) -> int:
+        """Replace one unique text occurrence and return its line number."""
         if old_str == "":
             raise EmptyStringError("Error: old_str cannot be empty")
         content = self.read_file_text(filepath)
@@ -145,6 +154,7 @@ class LocalWorkspace():
     def list_directory_entries(self, directory: str = ".",
                                pattern: str = "*", offset: int = 0) -> tuple[
                                 list[str], int, bool]:
+        """List matching directory entries with pagination."""
         # ".": Show me what's inside the workspace root.
         # pattern="*.py": show only .py but want EVERYTHING (files&folders)
         if offset < 0:
@@ -179,6 +189,7 @@ class LocalWorkspace():
 
     def run_command_in_folder(self, command: str, folder_path: str,
                               timeout: int = 60):
+        """Run a shell command in a workspace folder and return its results."""
         # self.root = sandbox
         # folder_path = working directory that is HOPEFULLY inside sandbox
         target_folder = (self.root_dir / folder_path).resolve()
@@ -227,6 +238,7 @@ class LocalWorkspace():
             }
 
     def search_files_for_pattern(self, pattern, file_pattern, offset):
+        """Search matching files for lines that match a regular expression."""
         # pattern → the regex we're searching for
         # file_pattern → which filenames to search, such as *.py
         # offset → pagination, just like list_files
@@ -281,6 +293,7 @@ class LocalWorkspace():
         return (matches, matches_num)
 
     def search_function_or_class_definitions(self, name, file_pattern, offset):
+        """Find function, async function, and class definitions by name."""
         ignored_dir = {".git", "__pycache__", ".pytest_cache", "node_modules",
                        ".venv", "venv"}
         matches = []
@@ -328,6 +341,7 @@ class LocalWorkspace():
             line,
             file_pattern,
             offset):
+        """Find textual references to a name, excluding its definition line."""
         matches = []
         ignored_dir = {".git", "__pycache__", ".pytest_cache", "node_modules",
                        ".venv", "venv"}
@@ -391,9 +405,12 @@ class LocalWorkspace():
 
 
 class DockerWorkspace:
+    """Provides workspace file operations backed by a Docker-managed
+    repository."""
     def __init__(self, host_repo_path,
                  image_name="swebench/sweb.eval.x86_64.sympy_1776_sympy-14711"
                  ):
+        """Initialize the Docker manager and local workspace interface."""
         self.host_repo_path = host_repo_path
         self.root_dir = self.host_repo_path
         self.image_name = image_name
@@ -401,32 +418,40 @@ class DockerWorkspace:
         self.local_workspace = LocalWorkspace(self.host_repo_path)
 
     def start(self):
+        """Prepare and start the Docker container."""
         self.container_manager.pull()
         self.container_manager.extract()
         self.container_manager.start()
 
     def die(self):
+        """Stop and clean up the Docker container."""
         self.container_manager.die()
 
     def __enter__(self):
+        """Start the workspace when entering a context manager."""
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Clean up the workspace when leaving a context manager."""
         self.die()
 
     def read_file_text(self, relative_path: str):
+        """Read a file through the local workspace interface."""
         return self.local_workspace.read_file_text(relative_path)
 
     def edit_file_text(self, filepath: str, old_str: str, new_str: str):
+        """Edit a file through the local workspace interface."""
         return self.local_workspace.edit_file_text(filepath, old_str, new_str)
 
     def list_directory_entries(self, directory: str = ".",
                                pattern: str = "*", offset: int = 0):
+        """List workspace entries with pagination."""
         return self.local_workspace.list_directory_entries(
             directory, pattern, offset)
 
     def search_files_for_pattern(self, pattern, file_pattern, offset):
+        """Forward a regex search request to the local workspace."""
         return self.local_workspace.search_files_for_pattern(
             pattern, file_pattern, offset
         )
@@ -434,6 +459,7 @@ class DockerWorkspace:
     def search_function_or_class_definitions(
             self, name, file_pattern, offset
                 ):
+        """Forward a definition search request to the local workspace."""
         return self.local_workspace.search_function_or_class_definitions(
             name, file_pattern, offset
         )
@@ -441,12 +467,14 @@ class DockerWorkspace:
     def find_name_references(
             self, name, file_path, line, file_pattern, offset
             ):
+        """Forward a name-reference search request to the local workspace."""
         return self.local_workspace.find_name_references(
             name, file_path, line, file_pattern, offset
         )
 
     def run_command_in_folder(self, command: str, folder_path: str,
                               timeout: int = 60):
+        """Execute a command inside the managed container."""
         # executes the command inside the container in /testbed and returns
         # standard facts packet (stdout, stderr, exit_code, timed_out).
         # git command will use this too to run it inside container.
@@ -454,4 +482,3 @@ class DockerWorkspace:
         if not target_folder.is_relative_to(self.root_dir):
             raise PathOutsideRootError("outside root")
         return self.container_manager.exec(command, folder_path, timeout)
-

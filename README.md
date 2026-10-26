@@ -218,8 +218,8 @@ Both transports are served from one process: the FastMCP streamable app is mount
 
 ```bash
 # the SWE-bench MCP server
-python mcp_tools_swebench.py --stdio   # stdio — the graded path
-python mcp_tools_swebench.py --http    # streamable HTTP, env-configured
+uv run python mcp_tools_swebench.py --stdio   # stdio — the graded path
+uv run python mcp_tools_swebench.py --http    # streamable HTTP, env-configured
 ```
 
 ```bash

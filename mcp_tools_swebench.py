@@ -1,20 +1,19 @@
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import MCPServer  # type: ignore[import-not-found]
 import threading
 import asyncio
 import time
 import shutil
-import signal
 from contextlib import asynccontextmanager
-from starlette.applications import Starlette
-from starlette.routing import Route
+from starlette.applications import Starlette  # type: ignore[import-not-found]
+from starlette.routing import Route  # type: ignore[import-not-found]
 # Route connects a URL path to a function
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse  # type: ignore[import-not-found]
 # uvicorn — the engine that actually serves a Starlette app
-import uvicorn
+import uvicorn  # type: ignore[import-not-found]
 import os
 import sys
-import docker
-from tools_common.workspace import DockerWorkspace, LocalWorkspace
+import docker  # type: ignore[import-untyped]
+from tools_common.workspace import DockerWorkspace
 from tools_common.filesystem import (
     read_file as read_file_impl,
     edit_file as edit_file_impl,
@@ -140,8 +139,8 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     def edit_file(filepath: str, old_str: str, new_str: str) -> str:
         """Replace an exact string in a file.
 
-    old_str must match the file content EXACTLY (read file first). If ambiguous 
-    (multiple matches), it fails and reports lines; include surrounding context 
+    old_str must match the file content EXACTLY (read file first). If ambiguous
+    (multiple matches), it fails and reports lines; include surrounding context
     to make it unique. Empty new_str deletes old_str.
 
     Args:
@@ -161,7 +160,8 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def list_files(directory: str = ".", pattern: str = "*",
                    offset: int = 0) -> str:
-        """List files/directories matching a pattern (directories end with '/').
+        """List files/directories matching a pattern
+        (directories end with '/').
 
     Sorted, paginated (max 100/call; use offset for next page).
 
@@ -183,7 +183,8 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     def run_command(command: str, workdir: str = ".") -> str:
         """Execute a shell command in the container.
 
-    Non-zero exit codes are normal (check output for details like failed tests).
+    Non-zero exit codes are normal
+    (check output for details like failed tests).
     Commands time out and preserve partial output.
 
     Args:
@@ -222,15 +223,15 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def search_code(pattern: str, file_pattern: str = "*.py",
                     offset: int = 0) -> str:
-        """Grep-like regex search recursively across files matching file_pattern (skips hidden/binary).
-    
+        """Grep-like regex search recursively across files matching
+        file_pattern (skips hidden/binary).
     Args:
         pattern: Python regex pattern to search for.
         file_pattern: Glob filter for filenames (default: "*.py").
         offset: Pagination offset, number of matches to skip (max 100/call).
-        
     Returns:
-        Formatted lines ("path:line line_content") with total count, or error message.
+        Formatted lines ("path:line line_content") with total count, or
+        error message.
     """
         note_activity()
         if holder.workspace is None:
@@ -242,7 +243,8 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def search_function_or_class_definition_in_code(
                                     name: str, offset: int = 0) -> str:
-        """Find exact definition of a function/class using AST (skips syntax errors).
+        """Find exact definition of a function/class using AST
+        (skips syntax errors).
 
     Output matches search_code format ("path:line line_content"), paginated.
 
@@ -251,7 +253,8 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
         offset: Pagination offset to skip first N matches (default: 0).
 
     Returns:
-        Definition lines found, or "no matches" message (suggesting search_code).
+        Definition lines found, or "no matches" message
+        (suggesting search_code).
     """
         note_activity()
         if holder.workspace is None:
@@ -263,9 +266,10 @@ def create_bound_tools(holder: WorkspaceHolder) -> list:
     @MCP.tool()
     def find_references(
             name: str, filepath: str, line: int, offset: int = 0) -> str:
-        """Find all whole-word USAGES of a symbol across the repository (excluding definition).
+        """Find all whole-word USAGES of a symbol across the repository
+        (excluding definition).
 
-    Workflow: find definition first, then pass its filepath and line. 
+    Workflow: find definition first, then pass its filepath and line.
     Output matches search_code format, paginated.
 
     Args:
@@ -343,7 +347,8 @@ def setup_docker_image() -> dict:
             "eval_script": os.environ["EVAL_SCRIPT"],
             "problem": os.environ["PROBLEM_STATEMENT"],
             "instance_id": os.environ["INSTANCE_ID"],
-            "mount_path": os.environ.get("SWEBENCH_MOUNT", f"/tmp/testbed_{os.environ['INSTANCE_ID']}"),
+            "mount_path": os.environ.get(
+                "SWEBENCH_MOUNT", f"/tmp/testbed_{os.environ['INSTANCE_ID']}"),
             "hints": os.environ.get("HINTS_TEXT", ""),
         }
         threading.Thread(
@@ -353,7 +358,8 @@ def setup_docker_image() -> dict:
         return {"state": "preparing", "error": ""}
 
     except KeyError as e:
-        return {"state": "failed", "error": f"could not read environ {e.args[0]}."}
+        return {
+            "state": "failed", "error": f"could not read environ {e.args[0]}."}
     except Exception as e:
         return {"state": "failed", "error": f"environ error: {e}."}
 
@@ -474,7 +480,7 @@ async def setup_endpoint(request):
     5. Returns 202 Accepted immediately to avoid HTTP connection
     timeouts during long tasks.
     """
-    # read the package 
+    # read the package
     # becomes a Python dictionary assigned to data
 
     data = await request.json()
@@ -548,7 +554,8 @@ async def lifespan(app):
     # Normally MCP.run() starts it for us, but in remote mode we create
     # the Starlette app ourselves, so we have to manage it here.
     async with MCP.session_manager.run():
-        # 2. THE RUNNING PHASE: Pause here while the server is alive and serving requests
+        # 2. THE RUNNING PHASE: Pause here while the server is alive and
+        # serving requests
         # Keep the session manager alive for the entire lifetime of the server.
         yield
     # 3. SHUTDOWN: When the server stops, the 'async with' block exits
@@ -570,7 +577,8 @@ def main() -> None:
             Route("/ready", ready_endpoint, methods=["GET"]),
             Route("/shutdown", shutdown_endpoint, methods=["POST"])
         ]
-        # initialize a Starlette application (which FastAPI is built on top of) and
+        # initialize a Starlette application (
+        # which FastAPI is built on top of) and
         # hand it your routes list (/setup and /ready).
         # Now app has POST /setup and GET /ready, but it is still
         # missing the protagonist of the show: MCP
@@ -593,13 +601,15 @@ def main() -> None:
             stop_event.set()
             deadline = time.time() + 60
             while time.time() < deadline:
-                if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+                if server_state.snapshot()["state"] in (
+                        "unconfigured", "failed"):
                     break
                 time.sleep(0.05)
         return
     else:
         # 1. Register tools NOW — they exist, holder.workspace is still None,
-        #    and each tool gracefully answers "not configured yet" if called early.
+        #    and each tool gracefully answers "not configured yet" if
+        # called early.
         create_bound_tools(holder)
         try:
             MCP.run()   # blocks until the client disconnects
@@ -607,7 +617,8 @@ def main() -> None:
             stop_event.set()
             deadline = time.time() + 60
             while time.time() < deadline:
-                if server_state.snapshot()["state"] in ("unconfigured", "failed"):
+                if server_state.snapshot()["state"] in (
+                        "unconfigured", "failed"):
                     break
                 time.sleep(0.05)
 
