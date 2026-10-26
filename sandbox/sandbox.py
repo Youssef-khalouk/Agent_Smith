@@ -18,6 +18,18 @@ SBX: SandboxConfig = SandboxConfig()
 
 class SandBox():
     def __init__(self, mcp_client: McpClient, config_file: str | None = None, logs: bool = False) -> None:
+        """
+        Initialize the sandbox and prepare the MCP tools and code executor.
+
+        Store the configuration and client, initialize sandbox status and final
+        answer tracking, retrieve and parse MCP tool metadata, and start the
+        executor subprocess.
+
+        Args:
+            mcp_client (McpClient): Client used to communicate with the MCP server.
+            config_file (str | None): Optional path to the sandbox configuration file.
+            logs (bool): Whether to enable verbose initialization logs.
+        """
         self.logs = logs
         if self.logs: print("\nInitalizeing sandbox.")
         self.config_file = config_file
@@ -44,6 +56,16 @@ class SandBox():
         self._init_executor()
 
     def _init_executor(self) -> None:
+        """
+        Start the executor subprocess inside an isolated user and network namespace.
+
+        Pass the available tool names, sandbox configuration, and tool argument
+        metadata to the executor. Configure the subprocess memory limit using
+        the sandbox's maximum memory setting.
+
+        Returns:
+            None
+        """
         if self.logs: print("\trunning subprocess executor.")
         self.executor = subprocess.Popen(
             ["unshare", "--user", 
@@ -65,12 +87,38 @@ class SandBox():
         )
 
     def get_error(self) -> str:
+        """
+        Return the error recorded during sandbox initialization or execution.
+
+        Returns:
+            str: The error message, or None if no error has been recorded.
+        """
         return (self.error)
 
     def is_ok(self) -> bool:
+        """
+        Return the sandbox's current operational status.
+
+        Returns:
+            bool: True if the sandbox is operational, otherwise False.
+        """
         return (self.is_ok)
 
     def _extract_data(self, tool: dict) -> str:
+        """
+        Extract MCP tool metadata and generate a Python-style function signature.
+
+        Parse the tool's input and output schemas, convert JSON Schema types into
+        Python type hints, record the ordered argument names, and format the tool
+        signature and description for use in the sandbox.
+
+        Args:
+            tool (dict): MCP tool definition containing its name, schemas, and
+                description.
+
+        Returns:
+            tuple[str, str]: The generated function signature and tool description.
+        """
         def __extract_types(key: str, dictionary: Dict[Any, Any]):
             arg_type: str = ""
             if "$ref" in dictionary[key]:
@@ -117,6 +165,17 @@ class SandBox():
         return meta_data, f"Description: {tool.description}"
 
     def _parse_mcp_tools(self):
+        """
+        Retrieve MCP tools and prepare their metadata for sandbox execution.
+
+        Fetch the available tools from the MCP client, record their names, extract
+        their function signatures and descriptions, and populate the metadata and
+        argument-name collections. Mark the sandbox as unavailable if retrieval
+        or parsing fails.
+
+        Returns:
+            None
+        """
         if self.logs: print("\tgeting tools and parse them.")
         try:
             self.tools = self.mcp_client.get_tools()
@@ -135,13 +194,46 @@ class SandBox():
             self.tools_meta_data_no_description.append(tool_data)
 
     def get_tools_metadata(self) -> List[str]:
+        """
+        Return the formatted metadata for the available MCP tools.
+
+        Returns:
+            List[str]: Tool signatures, descriptions, and final-answer instructions.
+        """
         return(self.tools_meta_data)
 
     def _final_answer(self, value: str) -> None:
+        """
+        Record the final answer returned by the executor.
+
+        Mark that the final-answer function has been called and store the supplied
+        answer value.
+
+        Args:
+            value (str): Final answer produced by the executor.
+
+        Returns:
+            None
+        """
         self.final_answer_called = True
         self.final_answer_value = value
 
     def exec_code(self, code: str) -> str:
+        """
+        Execute code in the sandbox and process responses from the executor.
+
+        Send the code to the executor subprocess as JSON, then read and handle
+        responses containing execution output, errors, final answers, or MCP tool
+        calls. Forward tool calls to the MCP client and return their results to
+        the executor.
+
+        Args:
+            code (str): Python code to execute inside the sandbox.
+
+        Returns:
+            str: Captured standard output, standard error, or the final answer.
+                May return None when execution fails.
+        """
         code = {"code": code}
         self.executor.stdin.write(f"{json.dumps(code)}\n")
         self.executor.stdin.flush()
@@ -194,6 +286,16 @@ class SandBox():
         return result
 
     def close(self) -> None:
+        """
+        Close the MCP client and terminate the executor subprocess.
+
+        Release the MCP connection, check whether the executor is still running,
+        and attempt graceful termination. Forcefully terminate the executor if it
+        does not stop within the timeout.
+
+        Returns:
+            None
+        """
         self.mcp_client.close()
         if self.executor is None:
             return

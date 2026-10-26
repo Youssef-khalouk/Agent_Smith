@@ -12,6 +12,23 @@ from models import SWEBenchTaskInput, DockerImage
 
 
 def interactive(sandbox: SandBox) -> None:
+    """
+    Run an interactive command-line session with the sandbox.
+
+    Accept Python code for execution and
+    support special commands to list
+    available MCP tools or exit the session.
+    Stop when the sandbox becomes
+    invalid or the user interrupts the session.
+
+    Args:
+        sandbox (SandBox): Sandbox instance used
+        to execute code and retrieve
+        available MCP tool metadata.
+
+    Returns:
+        None
+    """
     print("Interactive sandbox run successfully !")
     while True:
         if not sandbox.is_ok:
@@ -33,6 +50,22 @@ def interactive(sandbox: SandBox) -> None:
 
 
 def main() -> None:
+    """
+    Parse command-line arguments and initialize the sandbox environment.
+
+    Validate configuration and task files, configure the MCP connection,
+    initialize the MCP client and sandbox, and launch the interactive session.
+
+    Supported arguments:
+        config_file: Optional path to the sandbox configuration file.
+        --mcp-stdio: MCP server command or script for stdio communication.
+        --mcp-http: MCP server configuration for HTTP communication.
+        --verbose: Enable verbose sandbox logging.
+        --task-file: Optional path to the Docker image configuration file.
+
+    Returns:
+        None
+    """
     flag: bool = False
     parser = argparse.ArgumentParser(
         prog='sandbox_cli',

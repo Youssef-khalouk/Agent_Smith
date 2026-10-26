@@ -7,6 +7,13 @@ import time
 
 
 class Agent:
+    """
+    Orchestrate the language model, sandbox, and iterative task-solving process.
+
+    Manage task descriptions, prompt construction, code extraction and execution,
+    iteration and resource limits, and collection of execution metrics. Support
+    both MBPP programming tasks and SWE-bench software engineering tasks.
+    """
     def __init__(self,
                  provider: LLMProvider,
                  sandbox: SandBox,
@@ -48,6 +55,20 @@ class Agent:
         return (task_id, benchmark, system_prompt, task_prompt)
 
     def _limit_error(self, steps, start) -> str | None:
+        """
+        Check whether the agent has exceeded its execution or token limits.
+
+        Compare elapsed time and cumulative input and output token usage against
+        the configured limits.
+
+        Args:
+            steps: List of recorded metrics for completed agent iterations.
+            start (float): Start time returned by time.time().
+
+        Returns:
+            str | None: A description of the exceeded limit, or None if all limits
+                remain satisfied.
+        """
         if time.time() - start >= self.timeout_seconds:
             return "Timeout reached"
         if sum(s.input_tokens for s in steps) >= self.max_input_tokens:
@@ -57,6 +78,22 @@ class Agent:
         return None
 
     def _metrics(self, step, result, extracted_code, output) -> StepMetrics:
+        """
+        Build a metrics record for an agent iteration.
+
+        Collect token usage, request latency, provider and model information,
+        generated language model text, extracted code, sandbox output, and retry
+        count into a StepMetrics object.
+
+        Args:
+            step (int): Current iteration number.
+            result: Language model response containing text, usage, latency, and retries.
+            extracted_code (str | None): Code extracted from the model response.
+            output (str): Result or error message produced by sandbox execution.
+
+        Returns:
+            StepMetrics: Metrics recorded for the current iteration.
+        """
         return StepMetrics(
             step=step,
             input_tokens=result.input_tokens,
@@ -71,6 +108,25 @@ class Agent:
         )
 
     def _build_output(self, task_id, benchmark, success, solution, steps, start, error) -> SolutionOutput:
+        """
+        Construct the final solution output and aggregate execution metrics.
+
+        Calculate total requests, token usage, elapsed time, and iteration count,
+        then package the solution, system prompt, per-step metrics, and any error
+        into a SolutionOutput object.
+
+        Args:
+            task_id (str): Identifier of the task being solved.
+            benchmark (str): Benchmark name associated with the task.
+            success (bool): Whether the agent completed the task successfully.
+            solution (str): Final solution or patch produced by the agent.
+            steps (list[StepMetrics]): Metrics recorded for each agent iteration.
+            start (float): Agent start time returned by time.time().
+            error (str | None): Error message if the task was not completed.
+
+        Returns:
+            SolutionOutput: Final solution and aggregated execution metrics.
+        """
         return SolutionOutput(
             task_id=task_id,
             benchmark=benchmark,
@@ -87,6 +143,22 @@ class Agent:
         )
 
     def run(self, task: MBPPTaskInput | SWEBenchTaskInput) -> SolutionOutput:
+        """
+        Run the agent loop to solve an MBPP or SWE-bench task.
+
+        Construct the initial conversation, repeatedly request language model
+        responses, extract and execute generated code, and append observations
+        to the conversation. Stop when a final answer is produced, the sandbox
+        fails, an exception occurs, a resource limit is reached, or the maximum
+        number of iterations is exhausted.
+
+        Args:
+            task (MBPPTaskInput | SWEBenchTaskInput): Task to solve.
+
+        Returns:
+            SolutionOutput: Final solution, success status, execution metrics,
+                and any error encountered.
+        """
         if self.logs: print("\trunning agent loop:")
         task_id, benchmark, system_prompt, task_prompt = self._describe(task)
         start = time.time()

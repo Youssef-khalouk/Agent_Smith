@@ -5,6 +5,7 @@ from time import sleep
 
 
 class RateLimitError(Exception):
+    """Exception raised when an API request exceeds the provider's rate limit."""
     pass
 
 
@@ -14,6 +15,18 @@ class LLMProvider:
     """
 
     def __init__(self, api_url: str, model_name: str, api_keys: list[str], logs: bool = False):
+        """Initialize the language model provider.
+
+        Args:
+            api_url: The endpoint URL for the language model API.
+            model_name: The identifier of the model to use.
+            api_keys: API keys used to authenticate requests and retry with
+                alternative keys when rate limits or request errors occur.
+            logs: Whether to enable initialization logging.
+
+        Raises:
+            Exception: If the API URL, model name, or API key list is empty.
+        """
         self.logs = logs
         if self.logs: print("\nInitalizeing LLM Provider.")
         self.api_url = api_url
@@ -28,6 +41,16 @@ class LLMProvider:
             raise Exception("there is no api key provided.")
     
     def _get_reasoning_params(self):
+        """
+        Return reasoning parameters appropriate for the configured model.
+
+        Determine model-specific settings for disabling or controlling reasoning
+        based on the model name.
+
+        Returns:
+            A dictionary of additional API request parameters for reasoning
+            configuration, or an empty dictionary if no special settings apply.
+        """
         model = self.model_name.lower()
 
         # Groq GPT-OSS
@@ -53,6 +76,26 @@ class LLMProvider:
 
 
     def generate(self, messages: list[dict], stop_sequences: list[str] = []) -> LLMResponse:
+        """
+        Send a chat completion request and return the parsed model response.
+
+        Try the configured API keys sequentially, including optional stop sequences
+        and model-specific reasoning parameters. Measure request latency, extract
+        the generated text and token usage, and record the number of the key used
+        as the retry count.
+
+        Args:
+            messages: The conversation messages to send to the model.
+            stop_sequences: Optional sequences that instruct the model when to stop
+                generating text.
+
+        Returns:
+            An LLMResponse containing the generated text, token usage, request
+            latency, and retry count.
+
+        Raises:
+            RuntimeError: If all configured API keys fail or are rate-limited.
+        """
         stop_seq = {"stop": stop_sequences} if stop_sequences else {}
         last_error = None
         keys_len = len(self.api_keys)
